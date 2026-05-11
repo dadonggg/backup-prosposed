@@ -1,0 +1,56 @@
+# ============================================================
+#  Nutrify Gym Management — .gitignore
+#  Keeps secrets and local-only files out of GitHub
+# ============================================================
+
+# ── SECRET / CREDENTIAL FILES ────────────────────────────────
+# These files contain passwords, API keys, and OAuth secrets.
+# NEVER commit these to version control.
+.env
+.env.*
+# Google OAuth client_id & client_secret
+app/config/google.php
+# any future secrets file
+app/config/secrets.php
+# contains live PayMongo keys
+insert_paymongo_keys.php
+insert_paymongo_keys.sql
+QUICK_INSERT_PAYMONGO.sql
+
+# ── PHP VENDOR / DEPENDENCIES ────────────────────────────────
+vendor/
+# optional: keep if you want reproducible builds
+composer.lock
+
+# ── DATABASE DUMPS ───────────────────────────────────────────
+*.sql.bak
+# full DB dump — can contain real user data
+webdev.sql
+
+# ── LOGS (may contain PII / stack traces) ────────────────────
+app/logs/
+*.log
+
+# ── OPERATING SYSTEM FILES ───────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── EDITOR / IDE FILES ───────────────────────────────────────
+.vscode/
+.kiro/
+*.code-workspace
+.idea/
+
+# ── XAMPP / LOCAL SERVER ARTIFACTS ───────────────────────────
+# Temporary PHP debug files created during development
+check_current_status.php
+check_status.php
+debug_*.php
+diagnose_and_fix.php
+test_*.php
+COMPLETE_DIAGNOSTIC_AND_FIX.php
+COMPLETE_FIX.php
+migrate_payment.php
+run_migration.php
+verify_columns.php

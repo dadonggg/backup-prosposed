@@ -1,0 +1,22 @@
+/* Nutrify theme on top of Bootstrap */
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.card {
+    border-radius: 0.75rem;
+}
+
+.navbar-brand {
+    letter-spacing: -0.02em;
+}
+
+.otp-input {
+    letter-spacing: 0.35em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Ensure form text is readable */
+.form-text {
+    color: #6b8a6b !important;
+}
