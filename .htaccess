@@ -1,0 +1,13 @@
+# ============================================================
+#  Nutrify – InfinityFree compatible Apache configuration
+# ============================================================
+
+Options -Indexes
+
+RewriteEngine On
+RewriteBase /
+
+# Route all non-file, non-directory requests through index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]

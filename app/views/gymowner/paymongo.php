@@ -71,9 +71,9 @@ require __DIR__ . '/../partials/header.php';
             <dt class="col-sm-3">Public Key</dt>
             <dd class="col-sm-9">
                 <code><?= htmlspecialchars($config['public_key']) ?></code>
-                <?php if (str_starts_with($config['public_key'], 'pk_test_')): ?>
+                <?php if (strncmp($config['public_key'], 'pk_test_', 8) === 0): ?>
                     <span class="badge bg-warning text-dark ms-2">Test Mode</span>
-                <?php elseif (str_starts_with($config['public_key'], 'pk_live_')): ?>
+                <?php elseif (strncmp($config['public_key'], 'pk_live_', 8) === 0): ?>
                     <span class="badge bg-success ms-2">Live Mode</span>
                 <?php endif; ?>
             </dd>

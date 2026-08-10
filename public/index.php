@@ -1,5 +1,5 @@
 <?php
-
+//erewrwerwerwerweddasd
 declare(strict_types=1);
 
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
@@ -16,13 +16,26 @@ session_set_cookie_params([
 
 session_start();
 
-define('BASE_PATH', dirname(__DIR__));
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 
-require BASE_PATH . '/app/config/config.php';
-if (is_file(BASE_PATH . '/vendor/autoload.php')) {
-    require BASE_PATH . '/vendor/autoload.php';
+try {
+    define('BASE_PATH', dirname(__DIR__));
+
+    require BASE_PATH . '/app/config/config.php';
+    if (is_file(BASE_PATH . '/vendor/autoload.php')) {
+        require BASE_PATH . '/vendor/autoload.php';
+    }
+    require BASE_PATH . '/app/core/Autoload.php';
+
+    $app = new App\Core\App();
+    $app->run();
+} catch (\Throwable $e) {
+    echo "<div style='color:red; background:#ffe; padding:10px; border:2px solid red; font-family:sans-serif;'>";
+    echo "<strong>FATAL ERROR:</strong> " . get_class($e) . "<br>";
+    echo "<strong>Message:</strong> " . htmlspecialchars($e->getMessage()) . "<br>";
+    echo "<strong>File:</strong> " . $e->getFile() . " (line " . $e->getLine() . ")<br>";
+    echo "<strong>Trace:</strong><pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+    echo "</div>";
 }
-require BASE_PATH . '/app/core/Autoload.php';
-
-$app = new App\Core\App();
-$app->run();

@@ -1,0 +1,871 @@
+<?php
+declare(strict_types=1);
+$pageTitle = 'Fitness & Nutrition Plan';
+require __DIR__ . '/../partials/header.php';
+
+$displayName = trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''));
+if ($displayName === '') $displayName = $user['fullname'] ?? 'Member';
+$requestId = $request['id'];
+
+// Parse workout plan from JSON
+$workoutPlan = [];
+$workoutPlanJSON = $plan['fitness_plan_monday'] ?? '';
+if (!empty($workoutPlanJSON)) {
+    $decoded = json_decode($workoutPlanJSON, true);
+    if (is_array($decoded)) {
+        $workoutPlan = $decoded;
+    }
+}
+?>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg-page: #f0f2f0;
+  --bg-card: #ffffff;
+  --bg-section-header: #e8f5f0;
+  --border-card: #e2e8f0;
+  --accent-teal: #0d9488;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
+}
+
+body {
+  background: var(--bg-page) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  color: var(--text-primary) !important;
+}
+
+.fit-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.fit-card-hd {
+  background: var(--bg-section-header);
+  border-left: 4px solid var(--accent-teal);
+  border-bottom: 1px solid var(--border-card);
+  padding: 12px 18px;
+}
+
+.fit-heading {
+  color: var(--accent-teal) !important;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.day-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 1rem;
+  height: 100%;
+}
+
+.day-label {
+  color: var(--accent-teal);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.exercise-item {
+  background: white;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.exercise-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.exercise-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.custom-badge {
+  background: #22c55e;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+.macro-box {
+  background: #f8fafc;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 1.2rem 0.5rem;
+  text-align: center;
+}
+
+.macro-val {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.macro-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.btn-fit {
+  background: #166534;
+  color: #fff !important;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all .2s;
+}
+
+.btn-fit:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+.fit-input {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  font-size: 14px !important;
+}
+
+.fit-input:focus {
+  border-color: var(--accent-teal) !important;
+  box-shadow: 0 0 0 3px rgba(13,148,136,0.12) !important;
+}
+
+.fit-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.tab-btn.active {
+  background: #ffffff;
+  color: var(--accent-teal);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+.log-table {
+  width: 100%;
+  color: var(--text-primary);
+}
+
+.log-table thead th {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid var(--border-card);
+  padding: 12px 10px;
+}
+
+.log-table td {
+  border-bottom: 1px solid var(--border-card);
+  vertical-align: middle;
+  font-size: 14px;
+  padding: 12px 10px;
+}
+
+.log-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.food-suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: none;
+  margin-top: 4px;
+}
+
+.food-suggestion-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f5;
+  transition: background 0.2s;
+}
+
+.food-suggestion-item:hover {
+  background: #f8f9fa;
+}
+
+.food-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.food-suggestion-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.food-suggestion-brand {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.food-suggestion-nutrients {
+  font-size: 10px;
+  color: var(--accent-teal);
+  margin-top: 4px;
+}
+</style>
+
+<div class="container-fluid p-4">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="fw-bold mb-1" style="color: var(--text-primary); font-size: 26px;">
+        <i class="bi bi-file-earmark-check me-2" style="color: var(--accent-teal)"></i>Your Fitness & Nutrition Plan
+        <?php if ($plan['is_ai_plan'] ?? false): ?>
+        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-left: 8px;">
+          ✨ AI POWERED
+        </span>
+        <?php endif; ?>
+      </h1>
+      <p style="color: var(--text-secondary); font-size: 14px;">
+        Created by <strong style="color: var(--text-primary)"><?= htmlspecialchars($plan['trainer_name'] ?? 'Your Trainer') ?></strong>
+        <?php if ($plan['fitness_level']): ?>
+          · <span style="color: var(--accent-teal); text-transform: capitalize; font-weight: 600;"><?= htmlspecialchars($plan['fitness_level']) ?> Level</span>
+        <?php endif; ?>
+        <?php if ($plan['is_ai_plan'] ?? false): ?>
+          · <span style="color: #667eea; font-weight: 600;">Generated with <?= htmlspecialchars($plan['ai_model'] ?? 'AI') ?></span>
+        <?php endif; ?>
+      </p>
+    </div>
+    <a href="index.php?r=fitness/status" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+  </div>
+
+  <!-- Weekly Workout Schedule -->
+  <div class="fit-card">
+    <div class="fit-card-hd">
+      <h5 class="fit-heading">
+        <i class="bi bi-calendar-week me-2"></i>WEEKLY WORKOUT SCHEDULE
+      </h5>
+    </div>
+    <div class="p-4">
+      <div class="row g-3">
+        <?php
+        $days = ['mon' => 'MONDAY', 'tue' => 'TUESDAY', 'wed' => 'WEDNESDAY', 'thu' => 'THURSDAY', 'fri' => 'FRIDAY', 'sat' => 'SATURDAY', 'sun' => 'SUNDAY'];
+        foreach ($days as $dayKey => $dayLabel):
+          $exercises = $workoutPlan[$dayKey] ?? [];
+        ?>
+        <div class="col-lg-3 col-md-4 col-sm-6">
+          <div class="day-card">
+            <div class="day-label"><?= $dayLabel ?></div>
+            <?php if (empty($exercises)): ?>
+              <div style="color: var(--text-secondary); font-size: 13px; font-style: italic;">Rest day</div>
+            <?php else: ?>
+              <?php foreach ($exercises as $exercise): ?>
+                <div class="exercise-item">
+                  <div class="exercise-name">
+                    <?= htmlspecialchars($exercise['name'] ?? 'Exercise') ?>
+                    <?php if ($exercise['isCustom'] ?? false): ?>
+                      <span class="custom-badge">CUSTOM</span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="exercise-meta">
+                    <i class="bi bi-tag me-1"></i><?= htmlspecialchars($exercise['category'] ?? 'General') ?>
+                  </div>
+                  <div class="exercise-meta">
+                    <i class="bi bi-tools me-1"></i><?= htmlspecialchars($exercise['equipment'] ?? 'No equipment') ?>
+                  </div>
+                  <?php if (!empty($exercise['sets']) || !empty($exercise['reps'])): ?>
+                    <div class="exercise-meta mt-1">
+                      <i class="bi bi-trophy me-1"></i>
+                      <?= htmlspecialchars((string)($exercise['sets'] ?? '3')) ?> sets × 
+                      <?= htmlspecialchars((string)($exercise['reps'] ?? '10')) ?> reps
+                    </div>
+                  <?php endif; ?>
+                </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      
+      <?php if (!empty($plan['fitness_plan_notes'])): ?>
+      <div class="mt-4 p-3" style="background: #f0fdf9; border-radius:10px; border:1px solid #99f6e4;">
+        <p class="mb-0" style="font-size: 13px; color: var(--text-primary);">
+          <strong style="color: var(--accent-teal);">Trainer Notes:</strong> 
+          <?= nl2br(htmlspecialchars($plan['fitness_plan_notes'])) ?>
+        </p>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Nutrition Plan -->
+  <div class="fit-card">
+    <div class="fit-card-hd" style="background: #fffbeb; border-left-color: #f59e0b;">
+      <h5 class="fit-heading" style="color: #d97706 !important;">
+        <i class="bi bi-egg-fried me-2"></i>NUTRITION TARGETS
+      </h5>
+    </div>
+    <div class="p-4">
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+          <div class="macro-box">
+            <div class="macro-val" style="color: #ef4444"><?= $plan['target_calories'] ?? '—' ?></div>
+            <div class="macro-lbl">DAILY CALORIES</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="macro-box">
+            <div class="macro-val" style="color: #f59e0b"><?= $plan['target_protein_g'] ?? '—' ?><small style="font-size:1rem;">g</small></div>
+            <div class="macro-lbl">PROTEIN</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="macro-box">
+            <div class="macro-val" style="color: #3b82f6"><?= $plan['target_carbs_g'] ?? '—' ?><small style="font-size:1rem;">g</small></div>
+            <div class="macro-lbl">CARBS</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="macro-box">
+            <div class="macro-val" style="color: #0d9488"><?= $plan['target_fats_g'] ?? '—' ?><small style="font-size:1rem;">g</small></div>
+            <div class="macro-lbl">FATS</div>
+          </div>
+        </div>
+      </div>
+      
+      <?php if (!empty($plan['meal_suggestions'])): ?>
+      <div class="p-3" style="background: #fffbeb; border-radius:10px; border:1px solid #fef3c7;">
+        <p class="mb-1" style="color: #d97706; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">
+          Meal Suggestions
+        </p>
+        <p class="mb-0" style="font-size:13px; color: var(--text-primary); white-space: pre-wrap;"><?= htmlspecialchars($plan['meal_suggestions']) ?></p>
+      </div>
+      <?php endif; ?>
+      
+      <?php if (!empty($plan['nutrition_notes'])): ?>
+      <div class="mt-3 p-3" style="background: #f0fdf9; border-radius:10px; border:1px solid #99f6e4;">
+        <p class="mb-1" style="color: var(--accent-teal); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">
+          Nutrition Notes
+        </p>
+        <p class="mb-0" style="font-size:13px; color: var(--text-primary); white-space: pre-wrap;"><?= htmlspecialchars($plan['nutrition_notes']) ?></p>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Logging Tabs -->
+  <div class="fit-card">
+    <div class="fit-card-hd" style="background: #f8fafc; border-left-color: #06b6d4;">
+      <h5 class="fit-heading" style="color: var(--text-primary) !important;">
+        <i class="bi bi-journal-check me-2" style="color: var(--accent-teal)"></i>DAILY LOGS
+      </h5>
+    </div>
+    <div class="p-4">
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('workout')">
+          <i class="bi bi-lightning me-1"></i>Workout Log
+        </button>
+        <button class="tab-btn" onclick="switchTab('nutrition')">
+          <i class="bi bi-egg-fried me-1"></i>Nutrition Log
+        </button>
+      </div>
+
+      <!-- Workout Tab -->
+      <div id="tab-workout" class="tab-pane active">
+        <form id="workoutForm" class="mb-4">
+          <input type="hidden" name="request_id" value="<?= $requestId ?>">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+              <label class="fit-label">Date</label>
+              <input type="date" name="log_date" class="form-control fit-input" value="<?= date('Y-m-d') ?>" required>
+            </div>
+            <div class="col-md-3">
+              <label class="fit-label">Exercise</label>
+              <input type="text" name="exercise_name" class="form-control fit-input" placeholder="e.g. Bench Press" required>
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Sets</label>
+              <input type="number" name="sets" class="form-control fit-input" min="0" value="3">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Reps</label>
+              <input type="number" name="reps" class="form-control fit-input" min="0" value="10">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Weight (kg)</label>
+              <input type="number" name="weight_kg" class="form-control fit-input" min="0" step="0.5" value="0">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Minutes</label>
+              <input type="number" name="duration_minutes" class="form-control fit-input" min="0" value="30">
+            </div>
+            <div class="col-md-2">
+              <label class="fit-label">Notes</label>
+              <input type="text" name="notes" class="form-control fit-input" placeholder="Optional">
+            </div>
+            <div class="col-md-1">
+              <button type="submit" class="btn-fit btn w-100">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+        
+        <div class="table-responsive">
+          <table class="table log-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Exercise</th>
+                <th>Sets</th>
+                <th>Reps</th>
+                <th>Weight</th>
+                <th>Duration</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="workoutTableBody">
+              <?php foreach ($workoutLogs as $log): ?>
+              <tr>
+                <td><?= htmlspecialchars($log['log_date']) ?></td>
+                <td><strong><?= htmlspecialchars($log['exercise_name']) ?></strong></td>
+                <td><?= $log['sets'] ?></td>
+                <td><?= $log['reps'] ?></td>
+                <td><?= $log['weight_kg'] ?> kg</td>
+                <td><?= $log['duration_minutes'] ?> min</td>
+                <td style="color: var(--text-secondary)"><?= htmlspecialchars($log['notes'] ?? '') ?></td>
+              </tr>
+              <?php endforeach; ?>
+              <?php if (empty($workoutLogs)): ?>
+              <tr>
+                <td colspan="7" class="text-center" style="color: var(--text-secondary); padding: 2rem;">
+                  No workout logs yet. Add your first entry above!
+                </td>
+              </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Nutrition Tab -->
+      <div id="tab-nutrition" class="tab-pane">
+        <form id="nutritionForm" class="mb-4">
+          <input type="hidden" name="request_id" value="<?= $requestId ?>">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+              <label class="fit-label">Date</label>
+              <input type="date" name="log_date" class="form-control fit-input" value="<?= date('Y-m-d') ?>" required>
+            </div>
+            <div class="col-md-2">
+              <label class="fit-label">Meal Type</label>
+              <select name="meal_type" class="form-select fit-input" required>
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="snack">Snack</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="fit-label">Food Item</label>
+              <div class="position-relative">
+                <input type="text" name="food_item" id="foodItemInput" class="form-control fit-input" 
+                       placeholder="Search food..." required autocomplete="off">
+                <div class="food-suggestions-dropdown" id="foodSuggestionsDropdown"></div>
+              </div>
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Amount</label>
+              <input type="number" name="quantity" id="quantityInput" class="form-control fit-input" 
+                     min="0" step="0.1" value="100" onchange="recalculateNutrients()">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Unit</label>
+              <select name="unit" id="unitInput" class="form-select fit-input" onchange="recalculateNutrients()">
+                <option value="grams">grams</option>
+                <option value="cups">cups</option>
+                <option value="pieces">pieces</option>
+                <option value="oz">oz</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Calories</label>
+              <input type="number" name="calories" id="caloriesInput" class="form-control fit-input" 
+                     min="0" value="0" readonly style="background: #f8f9fa;">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Protein (g)</label>
+              <input type="number" name="protein_g" id="proteinInput" class="form-control fit-input" 
+                     min="0" step="0.1" value="0" readonly style="background: #f8f9fa;">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Carbs (g)</label>
+              <input type="number" name="carbs_g" id="carbsInput" class="form-control fit-input" 
+                     min="0" step="0.1" value="0" readonly style="background: #f8f9fa;">
+            </div>
+            <div class="col-md-1">
+              <label class="fit-label">Fats (g)</label>
+              <input type="number" name="fats_g" id="fatsInput" class="form-control fit-input" 
+                     min="0" step="0.1" value="0" readonly style="background: #f8f9fa;">
+            </div>
+            <div class="col-md-1">
+              <button type="submit" class="btn-fit btn w-100">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+        
+        <div class="table-responsive">
+          <table class="table log-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Meal</th>
+                <th>Food</th>
+                <th>Calories</th>
+                <th>Protein</th>
+                <th>Carbs</th>
+                <th>Fats</th>
+              </tr>
+            </thead>
+            <tbody id="nutritionTableBody">
+              <?php foreach ($nutritionLogs as $log): ?>
+              <tr>
+                <td><?= htmlspecialchars($log['log_date']) ?></td>
+                <td><span class="badge bg-info"><?= ucfirst($log['meal_type']) ?></span></td>
+                <td><strong><?= htmlspecialchars($log['food_item']) ?></strong></td>
+                <td><?= $log['calories'] ?></td>
+                <td><?= $log['protein_g'] ?>g</td>
+                <td><?= $log['carbs_g'] ?>g</td>
+                <td><?= $log['fats_g'] ?>g</td>
+              </tr>
+              <?php endforeach; ?>
+              <?php if (empty($nutritionLogs)): ?>
+              <tr>
+                <td colspan="7" class="text-center" style="color: var(--text-secondary); padding: 2rem;">
+                  No nutrition logs yet. Add your first entry above!
+                </td>
+              </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let foodSearchTimeout = null;
+let selectedFoodNutrients = null;
+
+const NUTRIENT_IDS = {
+    CALORIES: 1008,
+    PROTEIN: 1003,
+    CARBS: 1005,
+    FATS: 1004
+};
+
+const UNIT_MULTIPLIERS = {
+    'grams': 1,
+    'cups': 240,
+    'pieces': 50,
+    'oz': 28.35
+};
+
+function switchTab(tab) {
+  // Hide all tabs
+  document.querySelectorAll('.tab-pane').forEach(pane => {
+    pane.classList.remove('active');
+  });
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Show selected tab
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Food search with USDA API
+document.getElementById('foodItemInput').addEventListener('input', function(e) {
+    const query = e.target.value.trim();
+    const dropdown = document.getElementById('foodSuggestionsDropdown');
+    
+    if (query.length < 2) {
+        dropdown.style.display = 'none';
+        return;
+    }
+    
+    clearTimeout(foodSearchTimeout);
+    foodSearchTimeout = setTimeout(async () => {
+        try {
+            dropdown.innerHTML = '<div class="food-suggestion-item text-muted">Searching...</div>';
+            dropdown.style.display = 'block';
+            
+            const response = await fetch(`index.php?r=foodapi/search&query=${encodeURIComponent(query)}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const text = await response.text();
+            console.log('Raw API Response:', text); // Debug log
+            
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (parseError) {
+                console.error('JSON Parse Error:', parseError);
+                console.error('Response text:', text);
+                throw new Error('Invalid JSON response from server');
+            }
+            
+            console.log('Parsed API Response:', data); // Debug log
+            
+            if (data.error) {
+                dropdown.innerHTML = `<div class="food-suggestion-item text-danger">Error: ${data.error}</div>`;
+                dropdown.style.display = 'block';
+                return;
+            }
+            
+            if (data.foods && data.foods.length > 0) {
+                displayFoodDropdown(data.foods, dropdown);
+            } else {
+                dropdown.innerHTML = '<div class="food-suggestion-item text-muted">No results found</div>';
+                dropdown.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error searching food:', error);
+            const errorMsg = error.message || 'Unknown error occurred';
+            dropdown.innerHTML = `<div class="food-suggestion-item text-danger">Error: ${errorMsg}</div>`;
+            dropdown.style.display = 'block';
+        }
+    }, 500);
+});
+
+function displayFoodDropdown(foods, dropdown) {
+    dropdown.innerHTML = '';
+    
+    foods.slice(0, 10).forEach(food => {
+        const item = document.createElement('div');
+        item.className = 'food-suggestion-item';
+        
+        // Extract nutrients safely
+        const nutrients = extractNutrients(food.foodNutrients || []);
+        
+        item.innerHTML = `
+            <div class="food-suggestion-name">${food.description}</div>
+            <div class="food-suggestion-brand">${food.brandName || 'Generic'}</div>
+            <div class="food-suggestion-nutrients">
+                ${nutrients.calories} cal · ${nutrients.protein}g protein · ${nutrients.carbs}g carbs · ${nutrients.fats}g fat
+            </div>
+        `;
+        
+        item.onclick = () => selectFoodItem(food);
+        dropdown.appendChild(item);
+    });
+    
+    dropdown.style.display = 'block';
+}
+
+function extractNutrients(foodNutrients) {
+    if (!foodNutrients || foodNutrients.length === 0) {
+        return {
+            calories: 0,
+            protein: '0.0',
+            carbs: '0.0',
+            fats: '0.0'
+        };
+    }
+    
+    const calories = foodNutrients.find(n => n.nutrientId === NUTRIENT_IDS.CALORIES)?.value || 0;
+    const protein = foodNutrients.find(n => n.nutrientId === NUTRIENT_IDS.PROTEIN)?.value || 0;
+    const carbs = foodNutrients.find(n => n.nutrientId === NUTRIENT_IDS.CARBS)?.value || 0;
+    const fats = foodNutrients.find(n => n.nutrientId === NUTRIENT_IDS.FATS)?.value || 0;
+    
+    return {
+        calories: Math.round(calories),
+        protein: protein.toFixed(1),
+        carbs: carbs.toFixed(1),
+        fats: fats.toFixed(1)
+    };
+}
+
+function selectFoodItem(food) {
+    const dropdown = document.getElementById('foodSuggestionsDropdown');
+    const foodInput = document.getElementById('foodItemInput');
+    
+    // Set food name
+    foodInput.value = food.description;
+    dropdown.style.display = 'none';
+    
+    // Store nutrients for calculation
+    selectedFoodNutrients = extractNutrients(food.foodNutrients || []);
+    
+    console.log('Selected food nutrients:', selectedFoodNutrients); // Debug log
+    
+    // Calculate and fill nutrients based on current quantity/unit
+    recalculateNutrients();
+}
+
+function recalculateNutrients() {
+    if (!selectedFoodNutrients) {
+        console.log('No nutrients selected yet');
+        return;
+    }
+    
+    const quantity = parseFloat(document.getElementById('quantityInput').value) || 0;
+    const unit = document.getElementById('unitInput').value;
+    
+    console.log('Recalculating:', { quantity, unit, selectedFoodNutrients }); // Debug log
+    
+    // Convert to grams
+    const totalGrams = quantity * (UNIT_MULTIPLIERS[unit] || 1);
+    const ratio = totalGrams / 100; // USDA data is per 100g
+    
+    // Calculate nutrients
+    const calories = Math.round(parseFloat(selectedFoodNutrients.calories) * ratio);
+    const protein = (parseFloat(selectedFoodNutrients.protein) * ratio).toFixed(1);
+    const carbs = (parseFloat(selectedFoodNutrients.carbs) * ratio).toFixed(1);
+    const fats = (parseFloat(selectedFoodNutrients.fats) * ratio).toFixed(1);
+    
+    console.log('Calculated nutrients:', { calories, protein, carbs, fats }); // Debug log
+    
+    // Fill inputs
+    document.getElementById('caloriesInput').value = calories;
+    document.getElementById('proteinInput').value = protein;
+    document.getElementById('carbsInput').value = carbs;
+    document.getElementById('fatsInput').value = fats;
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#foodItemInput') && !e.target.closest('#foodSuggestionsDropdown')) {
+        document.getElementById('foodSuggestionsDropdown').style.display = 'none';
+    }
+});
+
+// Workout form submission
+document.getElementById('workoutForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  
+  fetch('index.php?r=fitness/addWorkout', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('Workout logged successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to log workout'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error logging workout');
+  });
+});
+
+// Nutrition form submission
+document.getElementById('nutritionForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  
+  fetch('index.php?r=fitness/addNutrition', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('Nutrition logged successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to log nutrition'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error logging nutrition');
+  });
+});
+</script>
+
+<?php require __DIR__ . '/../partials/footer.php'; ?>

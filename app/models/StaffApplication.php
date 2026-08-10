@@ -6,14 +6,30 @@ use PDO;
 
 final class StaffApplication extends Model
 {
-    public function create(int $userId, string $type, string $medCert, string $resume, ?int $gymOwnerId = null): int
+    /**
+     * Create a new staff application (position-only; documents are uploaded separately via Profile & Settings).
+     */
+    public function create(int $userId, string $type, ?int $gymOwnerId = null): int
     {
         $stmt = $this->db()->prepare(
             'INSERT INTO staff_applications (user_id, gym_owner_id, application_type, medical_certificate, resume, status)
-             VALUES (:uid, :gid, :type, :med, :res, "pending")'
+             VALUES (:uid, :gid, :type, NULL, NULL, "pending")'
         );
-        $stmt->execute([':uid' => $userId, ':gid' => $gymOwnerId, ':type' => $type, ':med' => $medCert, ':res' => $resume]);
+        $stmt->execute([':uid' => $userId, ':gid' => $gymOwnerId, ':type' => $type]);
         return (int)$this->db()->lastInsertId();
+    }
+
+    /**
+     * Find the most recent application for a specific user + gym combination.
+     */
+    public function findByUserAndGym(int $userId, int $gymOwnerId): ?array
+    {
+        $stmt = $this->db()->prepare(
+            'SELECT * FROM staff_applications WHERE user_id = :uid AND gym_owner_id = :gid ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute([':uid' => $userId, ':gid' => $gymOwnerId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
     }
     
     /**

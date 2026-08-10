@@ -14,6 +14,7 @@ use App\Models\Employee;
 use App\Models\FinancialRecord;
 use App\Models\GymInventory;
 use App\Models\AttendanceLog;
+use App\Models\FitnessServiceRequest;
 
 final class HomeController extends Controller
 {
@@ -53,8 +54,13 @@ final class HomeController extends Controller
                 $this->gymOwnerDashboard($user);
                 break;
             case 'trainer':
-            case 'maintenance':
                 $this->staffDashboard($user, $role);
+                break;
+            case 'maintenance':
+                $this->redirect('maintenance/dashboard');
+                break;
+            case 'marketing_officer':
+                $this->redirect('marketing/dashboard');
                 break;
             default:
                 $this->customerDashboard($user);
@@ -68,6 +74,11 @@ final class HomeController extends Controller
         $staffApp = (new StaffApplication())->findByUserId((int)$user['id']);
         $memberApp = (new MembershipApplication())->findByUserId((int)$user['id']);
         $gymMember = (new GymMember())->findByUserId((int)$user['id']);
+
+        // If user is an active gym member, redirect to member dashboard
+        if ($gymMember && ($gymMember['membership_status'] ?? 'active') === 'active') {
+            $this->redirect('member/dashboard');
+        }
 
         $this->view('dashboard/customer', [
             'user' => $user,
@@ -100,6 +111,19 @@ final class HomeController extends Controller
         $memberApps = (new MembershipApplication())->findAll();
         $pendingMemberApps = array_filter($memberApps, fn($a) => in_array($a['status'], ['pending', 'resubmit'], true));
 
+        $builderCampaign = null;
+        $campaignModel = new \App\Models\AdCampaign();
+        if ($campaignModel->tableExists()) {
+            try {
+                $pdo = \App\Core\Database::pdo();
+                $stmt = $pdo->prepare(
+                    'SELECT * FROM ad_campaigns WHERE gym_id = :gym_id AND source = "campaign_builder" ORDER BY updated_at DESC LIMIT 1'
+                );
+                $stmt->execute([':gym_id' => (int)$user['id']]);
+                $builderCampaign = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+            } catch (\PDOException $e) {}
+        }
+
         $this->view('dashboard/gymowner', [
             'user' => $user,
             'budget' => $budget,
@@ -115,6 +139,7 @@ final class HomeController extends Controller
             'monthlyMemberRevenue' => $monthlyMemberRevenue,
             'revenueByMonth' => $revenueByMonth,
             'pendingMemberApps' => $pendingMemberApps,
+            'builderCampaign' => $builderCampaign,
         ]);
     }
 
@@ -134,6 +159,20 @@ final class HomeController extends Controller
         $gymMembers = (new GymMember())->findAll();
         $employees = (new Employee())->findAll();
         $pendingApps = array_filter($memberApps, fn($a) => in_array($a['status'], ['pending', 'resubmit'], true));
+        
+        // Get fitness training request stats
+        $fitnessRequestModel = new FitnessServiceRequest();
+        $fitnessStats = $fitnessRequestModel->getStats();
+        
+        $builderCampaign = null;
+        try {
+            $campaignModel = new \App\Models\AdCampaign();
+            if ($campaignModel->tableExists()) {
+                $builderCampaign = $campaignModel->findActiveCampaignBuilder();
+            }
+        } catch (\Throwable $e) {
+            $builderCampaign = null;
+        }
 
         $this->view('dashboard/admofficer', [
             'user' => $user,
@@ -141,14 +180,76 @@ final class HomeController extends Controller
             'gymMembers' => $gymMembers,
             'employees' => $employees,
             'pendingCount' => count($pendingApps),
+            'fitnessStats' => $fitnessStats,
+            'builderCampaign' => $builderCampaign,
         ]);
     }
 
     private function staffDashboard(array $user, string $role): void
     {
+        // If trainer, show trainer-specific dashboard with fitness features
+        if ($role === 'trainer') {
+            $this->trainerDashboard($user);
+            return;
+        }
+        
+        // Otherwise show generic staff dashboard
         $this->view('dashboard/staff', [
             'user' => $user,
             'role' => $role,
+        ]);
+    }
+
+    private function trainerDashboard(array $user): void
+    {
+        // Get trainer's employee record
+        $employeeModel = new Employee();
+        $employee = $employeeModel->findByUserId((int)$user['id']);
+        
+        if (!$employee) {
+            // Fallback to generic staff dashboard
+            $this->view('dashboard/staff', [
+                'user' => $user,
+                'role' => 'trainer',
+            ]);
+            return;
+        }
+
+        // Get assigned clients (fitness service requests)
+        $requestModel = new FitnessServiceRequest();
+        $assignedClients = $requestModel->findByTrainerId((int)$employee['id']);
+        
+        // Get statistics
+        $totalClients = count($assignedClients);
+        $activeClients = count(array_filter($assignedClients, fn($c) => $c['status'] === 'assigned'));
+        $completedClients = count(array_filter($assignedClients, fn($c) => $c['status'] === 'completed'));
+        
+        // Get pending progress reviews (clients who sent progress)
+        $progressModel = new \App\Models\FitnessProgressTracking();
+        $pendingReviews = [];
+        foreach ($assignedClients as $client) {
+            $progress = $progressModel->findPendingByServiceRequestId((int)$client['id']);
+            if ($progress) {
+                $pendingReviews[] = array_merge($client, ['progress' => $progress]);
+            }
+        }
+        
+        // Get gym equipment (from gym owner who hired this trainer)
+        $equipment = [];
+        if (!empty($employee['hired_by'])) {
+            $inventoryModel = new GymInventory();
+            $equipment = $inventoryModel->findByOwnerId((int)$employee['hired_by']);
+        }
+
+        $this->view('dashboard/trainer', [
+            'user' => $user,
+            'employee' => $employee,
+            'assignedClients' => $assignedClients,
+            'totalClients' => $totalClients,
+            'activeClients' => $activeClients,
+            'completedClients' => $completedClients,
+            'pendingReviews' => $pendingReviews,
+            'equipment' => $equipment,
         ]);
     }
 

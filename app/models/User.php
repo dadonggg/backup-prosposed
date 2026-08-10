@@ -123,6 +123,12 @@ final class User extends Model
         $stmt->execute([':id' => $userId]);
     }
 
+    public function updateProfilePicture(int $userId, string $url): bool
+    {
+        $stmt = $this->db()->prepare('UPDATE users SET profile_picture_url = :url WHERE id = :id');
+        return $stmt->execute([':url' => $url, ':id' => $userId]);
+    }
+
     public function updateRole(int $userId, string $role): bool
     {
         try {

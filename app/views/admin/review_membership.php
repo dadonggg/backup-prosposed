@@ -30,10 +30,10 @@ require __DIR__ . '/../partials/header.php';
                     <dd class="col-sm-8"><?= htmlspecialchars($app['fullname']) ?> (<?= htmlspecialchars($app['email']) ?>)</dd>
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8">
-                        <?php $badge = match($app['status']) {
+                        <?php $badge = [
                             'pending'=>'bg-warning text-dark','verified'=>'bg-info','approved'=>'bg-success',
-                            'rejected'=>'bg-danger','resubmit'=>'bg-secondary',default=>'bg-secondary'
-                        }; ?>
+                            'rejected'=>'bg-danger','resubmit'=>'bg-secondary'
+                        ][$app['status']] ?? 'bg-secondary'; ?>
                         <span class="badge <?= $badge ?>"><?= ucfirst($app['status']) ?></span>
                     </dd>
                     <dt class="col-sm-4">Plan</dt>

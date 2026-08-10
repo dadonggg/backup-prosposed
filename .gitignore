@@ -54,3 +54,7 @@ COMPLETE_FIX.php
 migrate_payment.php
 run_migration.php
 verify_columns.php
+
+# ── TEMPORARY & LOCAL SCRATCH ARTIFACTS ──────────────────────
+scratch/
+*.zip

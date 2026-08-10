@@ -39,7 +39,7 @@ final class Employee extends Model
         return $this->db()->query(
             'SELECT e.*, u.fullname, u.email FROM employees e
              JOIN users u ON u.id = e.user_id
-             WHERE e.position = "trainer" AND e.is_available = 1 ORDER BY u.fullname'
+             WHERE e.position = "trainer" ORDER BY u.fullname'
         )->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -49,6 +49,19 @@ final class Employee extends Model
             'SELECT e.*, u.fullname, u.email FROM employees e JOIN users u ON u.id = e.user_id WHERE e.id = :id LIMIT 1'
         );
         $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function findByUserId(int $userId): ?array
+    {
+        $stmt = $this->db()->prepare(
+            'SELECT e.*, u.fullname, u.email, u.role FROM employees e 
+             JOIN users u ON u.id = e.user_id 
+             WHERE e.user_id = :uid 
+             LIMIT 1'
+        );
+        $stmt->execute([':uid' => $userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }

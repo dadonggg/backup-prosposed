@@ -26,7 +26,13 @@ require __DIR__ . '/../partials/header.php';
                             <td class="small"><?= htmlspecialchars($a['email']) ?></td>
                             <td><span class="badge bg-info"><?= ucfirst($a['application_type']) ?></span></td>
                             <td>
-                                <?php $badge = match($a['status']) { 'pending'=>'bg-warning text-dark','approved'=>'bg-success','rejected'=>'bg-danger',default=>'bg-secondary' }; ?>
+                                <?php
+                                $__st = $a['status'];
+                                if ($__st === 'pending') { $badge = 'bg-warning text-dark'; }
+                                elseif ($__st === 'approved') { $badge = 'bg-success'; }
+                                elseif ($__st === 'rejected') { $badge = 'bg-danger'; }
+                                else { $badge = 'bg-secondary'; }
+                                ?>
                                 <span class="badge <?= $badge ?>"><?= ucfirst($a['status']) ?></span>
                             </td>
                             <td class="small"><?= htmlspecialchars($a['created_at']) ?></td>

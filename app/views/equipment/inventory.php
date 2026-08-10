@@ -124,13 +124,9 @@ $distinctWeights = array_filter(array_unique(array_column($inventory ?? [], 'wei
                     </div>
                     <div class="form-text">Auto-populated from template</div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label class="form-label" for="eq_quantity">Quantity <span class="text-danger">*</span></label>
                     <input class="form-control" id="eq_quantity" type="number" name="eq_quantity" min="1" value="1" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="eq_price">Price / Value (₱)</label>
-                    <input class="form-control" id="eq_price" type="number" name="eq_price" step="0.01" min="0" value="0">
                 </div>
             </div>
             <div class="row g-3">
@@ -165,12 +161,6 @@ $distinctWeights = array_filter(array_unique(array_column($inventory ?? [], 'wei
 
 <!-- ─── Inventory Grid ─── -->
 <h2 class="h5 mb-3"><i class="bi bi-grid me-1"></i>Your Inventory (<?= count($inventory) ?> items)</h2>
-<?php
-$totalInventoryValue = 0;
-foreach ($inventory as $item) { $totalInventoryValue += (int)$item['quantity'] * (float)$item['price']; }
-if ($totalInventoryValue > 0): ?>
-<div class="alert alert-info mb-3"><i class="bi bi-calculator me-1"></i> Total Inventory Value: <strong>₱<?= number_format($totalInventoryValue, 2) ?></strong> <span class="text-muted">(sum of qty × price for all items)</span></div>
-<?php endif; ?>
 
 <?php if (empty($inventory)): ?>
     <div class="card">
@@ -215,16 +205,7 @@ if ($totalInventoryValue > 0): ?>
                     </div>
                     <div class="mb-2">
                         <span class="fw-bold" style="color:#1B6B2A">Qty: <?= (int)$item['quantity'] ?></span>
-                        <?php if ((float)$item['price'] > 0): ?>
-                            <span class="ms-2 small text-muted">@ ₱<?= number_format((float)$item['price'], 2) ?> each</span>
-                        <?php endif; ?>
                     </div>
-                    <?php if ((float)$item['price'] > 0): ?>
-                    <div class="mb-2">
-                        <span class="badge bg-success"><i class="bi bi-calculator me-1"></i>Total: ₱<?= number_format((int)$item['quantity'] * (float)$item['price'], 2) ?></span>
-                        <span class="small text-muted ms-1"><?= (int)$item['quantity'] ?> × ₱<?= number_format((float)$item['price'], 2) ?></span>
-                    </div>
-                    <?php endif; ?>
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="text-muted" style="font-size:.7rem">Listed: <?= htmlspecialchars($item['created_at']) ?></div>
                         <form method="post" style="display:inline" class="delete-equipment-form" data-item-id="<?= $item['id'] ?>">

@@ -31,7 +31,24 @@ require __DIR__ . '/../partials/header.php';
                         ?>
                         <tr class="<?= $expired ? 'table-light' : '' ?>">
                             <td><?= $m['id'] ?></td>
-                            <td><?= htmlspecialchars($m['fullname']) ?></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <?php if (!empty($m['profile_picture_url'])): ?>
+                                        <img src="public/<?= htmlspecialchars(ltrim($m['profile_picture_url'], '/')) ?>" 
+                                             class="rounded-circle" style="width:32px;height:32px;object-fit:cover;border:1px solid #1B6B2A;" alt="Avatar">
+                                    <?php else: ?>
+                                        <?php
+                                            $parts = explode(' ', trim($m['fullname'] ?? 'User'));
+                                            $inits = strtoupper(substr($parts[0] ?? 'U', 0, 1) . substr($parts[count($parts)-1] ?? '', 0, 1));
+                                        ?>
+                                        <div class="rounded-circle text-white d-flex align-items-center justify-content-center fw-bold" 
+                                             style="width:32px;height:32px;font-size:0.75rem;background:linear-gradient(135deg,#1B6B2A,#2E8B3E);">
+                                            <?= htmlspecialchars($inits) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <span class="fw-semibold"><?= htmlspecialchars($m['fullname']) ?></span>
+                                </div>
+                            </td>
                             <td class="small"><?= htmlspecialchars($m['email']) ?></td>
                             <td><code style="color:#1B6B2A"><?= htmlspecialchars($m['membership_code']) ?></code></td>
                             <td class="small"><?= ucfirst(str_replace('_', ' ', $m['payment_type'] ?? 'N/A')) ?></td>

@@ -230,16 +230,16 @@ final class DataMasking
         }
         
         // Otherwise, mask based on data type
-        return match($dataType) {
-            'phone' => self::phone($data),
-            'email' => self::email($data),
-            'card' => self::cardNumber($data),
-            'name' => self::name($data),
-            'address' => self::address($data),
-            'birthdate' => self::birthDate($data),
-            'apikey' => self::apiKey($data),
-            default => str_repeat('*', min(strlen($data), 10)),
-        };
+        switch ($dataType) {
+            case 'phone': return self::phone($data);
+            case 'email': return self::email($data);
+            case 'card': return self::cardNumber($data);
+            case 'name': return self::name($data);
+            case 'address': return self::address($data);
+            case 'birthdate': return self::birthDate($data);
+            case 'apikey': return self::apiKey($data);
+            default: return str_repeat('*', min(strlen($data), 10));
+        }
     }
 
     /**
@@ -250,12 +250,22 @@ final class DataMasking
      */
     public static function getClassification(string $dataType): string
     {
-        return match($dataType) {
-            'phone', 'email', 'birthdate', 'address' => 'CONFIDENTIAL',
-            'card', 'apikey', 'password' => 'RESTRICTED',
-            'name', 'age' => 'INTERNAL',
-            default => 'PUBLIC',
-        };
+        switch ($dataType) {
+            case 'phone':
+            case 'email':
+            case 'birthdate':
+            case 'address':
+                return 'CONFIDENTIAL';
+            case 'card':
+            case 'apikey':
+            case 'password':
+                return 'RESTRICTED';
+            case 'name':
+            case 'age':
+                return 'INTERNAL';
+            default:
+                return 'PUBLIC';
+        }
     }
 
     /**
@@ -266,12 +276,13 @@ final class DataMasking
      */
     public static function getClassificationBadgeClass(string $classification): string
     {
-        return match($classification) {
-            'RESTRICTED' => 'badge bg-danger',
-            'CONFIDENTIAL' => 'badge bg-warning text-dark',
-            'INTERNAL' => 'badge bg-info',
-            'PUBLIC' => 'badge bg-secondary',
-            default => 'badge bg-secondary',
-        };
+        switch ($classification) {
+            case 'RESTRICTED': return 'badge bg-danger';
+            case 'CONFIDENTIAL': return 'badge bg-warning text-dark';
+            case 'INTERNAL': return 'badge bg-info';
+            case 'PUBLIC':
+            default:
+                return 'badge bg-secondary';
+        }
     }
 }

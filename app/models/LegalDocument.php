@@ -6,14 +6,36 @@ use PDO;
 
 final class LegalDocument extends Model
 {
-    public function create(int $userId, string $certReg, string $mayors, string $bizName, string $fireSafety, string $gymName = '', string $gymLogo = '', string $gymAddress = '', int $maintenanceCount = 0, int $trainerCount = 0): int
-    {
+    public function create(
+        int $userId, 
+        string $certReg, 
+        string $mayors, 
+        string $bizName, 
+        string $fireSafety, 
+        string $gymName = '', 
+        string $gymLogo = '', 
+        string $gymAddress = '', 
+        int $maintenanceCount = 0, 
+        int $trainerCount = 0,
+        string $streetAddress = '',
+        string $province = '',
+        string $cityMunicipality = '',
+        string $barangay = '',
+        ?string $otherStaff = null
+    ): int {
         try {
             \App\Core\Database::beginTransaction();
 
             $stmt = $this->db()->prepare(
-                'INSERT INTO legal_documents (user_id, gym_name, gym_logo, gym_address, maintenance_count, trainer_count, cert_registration, mayors_permit, business_name_cert, fire_safety_cert, status)
-                 VALUES (:uid, :gn, :gl, :ga, :mc, :tc, :cr, :mp, :bn, :fs, "pending")'
+                'INSERT INTO legal_documents (
+                    user_id, gym_name, gym_logo, gym_address, maintenance_count, trainer_count, 
+                    cert_registration, mayors_permit, business_name_cert, fire_safety_cert, status,
+                    street_address, province, city_municipality, barangay, other_staff_needed
+                 ) VALUES (
+                    :uid, :gn, :gl, :ga, :mc, :tc, 
+                    :cr, :mp, :bn, :fs, "pending",
+                    :street, :prov, :city, :bar, :other_staff
+                 )'
             );
             $stmt->execute([
                 ':uid' => $userId, 
@@ -25,7 +47,12 @@ final class LegalDocument extends Model
                 ':cr' => $certReg, 
                 ':mp' => $mayors, 
                 ':bn' => $bizName, 
-                ':fs' => $fireSafety
+                ':fs' => $fireSafety,
+                ':street' => $streetAddress,
+                ':prov' => $province,
+                ':city' => $cityMunicipality,
+                ':bar' => $barangay,
+                ':other_staff' => $otherStaff
             ]);
             
             $id = (int)$this->db()->lastInsertId();
@@ -121,6 +148,150 @@ final class LegalDocument extends Model
         } catch (\Exception $e) {
             \App\Core\Database::rollback();
             $this->logError("updateDocuments failed for document ID $id: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateDocumentsAndInfo(
+        int $id, 
+        string $certReg, 
+        string $mayors, 
+        string $bizName, 
+        string $fireSafety,
+        string $gymName,
+        string $gymLogo,
+        string $gymAddress,
+        string $streetAddress,
+        string $province,
+        string $cityMunicipality,
+        string $barangay,
+        int $maintenanceCount,
+        int $trainerCount,
+        ?string $otherStaff
+    ): bool {
+        try {
+            \App\Core\Database::beginTransaction();
+
+            $sql = 'UPDATE legal_documents SET 
+                cert_registration=:cr, mayors_permit=:mp, business_name_cert=:bn, fire_safety_cert=:fs,
+                gym_name=:gn, gym_address=:ga, street_address=:street, province=:prov, 
+                city_municipality=:city, barangay=:bar, maintenance_count=:mc, trainer_count=:tc, 
+                other_staff_needed=:other_staff, status="pending", admin_feedback=NULL,
+                cert_registration_status="pending", mayors_permit_status="pending",
+                business_name_cert_status="pending", fire_safety_cert_status="pending",
+                cert_registration_comment=NULL, mayors_permit_comment=NULL,
+                business_name_cert_comment=NULL, fire_safety_cert_comment=NULL,
+                cert_registration_checked=0, mayors_permit_checked=0,
+                business_name_cert_checked=0, fire_safety_cert_checked=0';
+
+            $params = [
+                ':cr' => $certReg,
+                ':mp' => $mayors,
+                ':bn' => $bizName,
+                ':fs' => $fireSafety,
+                ':gn' => $gymName,
+                ':ga' => $gymAddress,
+                ':street' => $streetAddress,
+                ':prov' => $province,
+                ':city' => $cityMunicipality,
+                ':bar' => $barangay,
+                ':mc' => $maintenanceCount,
+                ':tc' => $trainerCount,
+                ':other_staff' => $otherStaff,
+                ':id' => $id
+            ];
+
+            if ($gymLogo !== '') {
+                $sql .= ', gym_logo=:gl';
+                $params[':gl'] = $gymLogo;
+            }
+
+            $sql .= ' WHERE id=:id';
+
+            $stmt = $this->db()->prepare($sql);
+            $stmt->execute($params);
+
+            \App\Core\Database::commit();
+            return true;
+
+        } catch (\Exception $e) {
+            \App\Core\Database::rollback();
+            $this->logError("updateDocumentsAndInfo failed for document ID $id: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Ensure columns gym_description and opening_hours exist in legal_documents table
+     */
+    public function ensureProfileColumns(): void
+    {
+        try {
+            $stmt = $this->db()->query("SHOW COLUMNS FROM legal_documents LIKE 'gym_description'");
+            if ($stmt->rowCount() === 0) {
+                $this->db()->exec("ALTER TABLE legal_documents ADD COLUMN gym_description TEXT DEFAULT NULL AFTER gym_address");
+            }
+            $stmt2 = $this->db()->query("SHOW COLUMNS FROM legal_documents LIKE 'opening_hours'");
+            if ($stmt2->rowCount() === 0) {
+                $this->db()->exec("ALTER TABLE legal_documents ADD COLUMN opening_hours JSON DEFAULT NULL AFTER gym_description");
+            }
+        } catch (\Exception $e) {
+            $this->logError("ensureProfileColumns error: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update gym profile details (name, description, address, opening hours, logo) by document ID
+     */
+    public function updateGymProfile(
+        int $id,
+        string $gymName,
+        string $gymDescription,
+        string $streetAddress,
+        string $province,
+        string $cityMunicipality,
+        string $barangay,
+        string $openingHoursJson,
+        ?string $gymLogo = null
+    ): bool {
+        $this->ensureProfileColumns();
+        try {
+            $fullAddress = trim(implode(', ', array_filter([$streetAddress, $barangay, $cityMunicipality, $province])));
+
+            $sql = 'UPDATE legal_documents SET 
+                gym_name = :gn,
+                gym_description = :desc,
+                street_address = :street,
+                province = :prov,
+                city_municipality = :city,
+                barangay = :bar,
+                gym_address = :ga,
+                opening_hours = :oh';
+
+            $params = [
+                ':gn'     => $gymName,
+                ':desc'   => $gymDescription,
+                ':street' => $streetAddress,
+                ':prov'   => $province,
+                ':city'   => $cityMunicipality,
+                ':bar'    => $barangay,
+                ':ga'     => $fullAddress,
+                ':oh'     => $openingHoursJson,
+                ':id'     => $id
+            ];
+
+            if ($gymLogo !== null && $gymLogo !== '') {
+                $sql .= ', gym_logo = :gl';
+                $params[':gl'] = $gymLogo;
+            }
+
+            $sql .= ' WHERE id = :id';
+
+            $stmt = $this->db()->prepare($sql);
+            return $stmt->execute($params);
+
+        } catch (\Exception $e) {
+            $this->logError("updateGymProfile failed for document ID $id: " . $e->getMessage());
             return false;
         }
     }

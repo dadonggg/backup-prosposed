@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\StaffApplication;
 use App\Models\Employee;
 use App\Models\Notification;
+use App\Models\UserDocument;
 
 final class StaffController extends Controller
 {
@@ -32,11 +33,14 @@ final class StaffController extends Controller
 
         $appModel = new StaffApplication();
         $gyms = $appModel->findAvailableGyms();
-        
+
         $this->view('staff/gyms', ['user' => $user, 'gyms' => $gyms]);
     }
 
-    /** Customer applies as maintenance or trainer */
+    /**
+     * Customer applies as maintenance or trainer — position only, no file uploads.
+     * Documents are uploaded separately from Profile & Settings.
+     */
     public function applyAction(): void
     {
         $user = $this->requireLogin();
@@ -47,8 +51,7 @@ final class StaffController extends Controller
 
         $error = ''; $success = '';
         $appModel = new StaffApplication();
-        $existing = $appModel->findByUserId((int)$user['id']);
-        
+
         // Get gym details
         $gyms = $appModel->findAvailableGyms();
         $selectedGym = null;
@@ -60,82 +63,38 @@ final class StaffController extends Controller
         }
         if (!$selectedGym) { $this->redirect('staff/gyms'); }
 
+        // Check for existing application for this specific gym
+        $existing = $appModel->findByUserAndGym((int)$user['id'], $gymOwnerId);
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $action = $_POST['action'] ?? 'submit';
+            $type = trim($_POST['application_type'] ?? '');
+            $positionLabels = ['maintenance' => 'Maintenance Officer', 'trainer' => 'Fitness Trainer'];
 
-            if ($action === 'resubmit_doc') {
-                // Resubmit a single flagged document
-                $docField = $_POST['doc_field'] ?? '';
-                if (!in_array($docField, ['medical_certificate', 'resume'], true)) {
-                    $error = 'Invalid document field.';
-                } elseif (!$existing || $existing['status'] !== 'resubmit') {
-                    $error = 'No application to resubmit.';
-                } elseif (empty($_FILES[$docField]['tmp_name'])) {
-                    $error = 'Please select a file to upload.';
-                } else {
-                    $uploadDir = BASE_PATH . '/public/uploads/staff_applications/';
-                    if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0777, true); }
-                    $ext = strtolower(pathinfo($_FILES[$docField]['name'], PATHINFO_EXTENSION));
-                    if (!in_array($ext, ['pdf','jpg','jpeg','png','doc','docx'], true)) {
-                        $error = 'Only PDF, JPG, PNG, DOC files allowed.';
-                    } else {
-                        $filename = $docField . '_' . $user['id'] . '_' . time() . '.' . $ext;
-                        if (!move_uploaded_file($_FILES[$docField]['tmp_name'], $uploadDir . $filename)) {
-                            $error = 'Failed to upload file.';
-                        } else {
-                            $path = 'uploads/staff_applications/' . $filename;
-                            $appModel->updateSingleDocument((int)$existing['id'], $docField, $path);
-
-                            // Check if all flagged docs are now fixed → set back to pending
-                            $updated = $appModel->findByUserId((int)$user['id']);
-                            $allFixed = true;
-                            foreach (['medical_certificate_status', 'resume_status'] as $sf) {
-                                if (($updated[$sf] ?? 'pending') === 'flagged') { $allFixed = false; }
-                            }
-                            if ($allFixed) {
-                                $appModel->updateStatus((int)$existing['id'], 'pending', '', null);
-                            }
-
-                            $success = 'Document resubmitted successfully.';
-                            $existing = $appModel->findByUserId((int)$user['id']);
-                        }
-                    }
-                }
+            if (!isset($positionLabels[$type])) {
+                $error = 'Please select a valid position.';
+            } elseif ($existing && in_array($existing['status'], ['pending', 'approved'], true)) {
+                $error = 'You already have an active application for this gym (Status: ' . ucfirst($existing['status']) . '). Please wait for the gym owner to review it.';
             } else {
-                // Original full application submit
-                $type = $_POST['application_type'] ?? '';
-                if (!in_array($type, ['maintenance','trainer'], true)) {
-                    $error = 'Select a valid position.';
+                // Create or re-create the application record (position-only, no files)
+                if ($existing && $existing['status'] === 'rejected') {
+                    // Update the existing rejected application to re-apply
+                    $appModel->updateStatus((int)$existing['id'], 'pending', '', null);
+                    $success = 'Application re-submitted for ' . $positionLabels[$type] . ' at ' . htmlspecialchars($selectedGym['gym_name']) . '.';
                 } else {
-                    $uploadDir = BASE_PATH . '/public/uploads/staff_applications/';
-                    if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0777, true); }
-
-                    $fields = ['medical_certificate','resume'];
-                    $paths = [];
-                    foreach ($fields as $f) {
-                        if (empty($_FILES[$f]['tmp_name'])) { $error = 'Both medical certificate and resume are required.'; break; }
-                        $ext = strtolower(pathinfo($_FILES[$f]['name'], PATHINFO_EXTENSION));
-                        if (!in_array($ext, ['pdf','jpg','jpeg','png','doc','docx'], true)) { $error = 'Only PDF, JPG, PNG, DOC files allowed.'; break; }
-                        $filename = $f . '_' . $user['id'] . '_' . time() . '.' . $ext;
-                        if (!move_uploaded_file($_FILES[$f]['tmp_name'], $uploadDir . $filename)) { $error = 'Failed to upload ' . $f; break; }
-                        $paths[$f] = 'uploads/staff_applications/' . $filename;
-                    }
-                    if ($error === '') {
-                        if ($existing && in_array($existing['status'], ['rejected', 'resubmit'], true)) {
-                            // Allowed: update existing record with new files
-                            $appModel->updateDocuments((int)$existing['id'], $paths['medical_certificate'], $paths['resume']);
-                            $success = 'Documents resubmitted. Waiting for review.';
-                        } elseif (!$existing) {
-                            // Allowed: first-time application — create single record
-                            $appModel->create((int)$user['id'], $type, $paths['medical_certificate'], $paths['resume'], $gymOwnerId);
-                            $success = 'Application submitted to ' . htmlspecialchars($selectedGym['gym_name']) . '. Waiting for gym owner review.';
-                        } else {
-                            // Block: active application already exists (pending/approved)
-                            $error = 'You already have an active application (Status: ' . ucfirst($existing['status']) . '). Please wait for the gym owner to review it.';
-                        }
-                        $existing = $appModel->findByUserId((int)$user['id']);
-                    }
+                    $appModel->create((int)$user['id'], $type, $gymOwnerId);
+                    $success = 'Application submitted! You applied for the ' . $positionLabels[$type] . ' role at ' . htmlspecialchars($selectedGym['gym_name']) . '.';
                 }
+
+                // Notify gym owner
+                $this->notify(
+                    $gymOwnerId,
+                    'New Staff Application — ' . $positionLabels[$type],
+                    htmlspecialchars($user['fullname']) . ' has applied for the ' . $positionLabels[$type] . ' position. Review their application in Staff Applications.',
+                    'info',
+                    'staff/applications'
+                );
+
+                $existing = $appModel->findByUserAndGym((int)$user['id'], $gymOwnerId);
             }
         }
 
@@ -150,15 +109,15 @@ final class StaffController extends Controller
         }
 
         $this->view('staff/apply', [
-            'user' => $user, 
-            'error' => $error, 
-            'success' => $success, 
+            'user'     => $user,
+            'error'    => $error,
+            'success'  => $success,
             'staffApp' => $existing,
-            'gym' => $selectedGym
+            'gym'      => $selectedGym,
         ]);
     }
 
-    /** Gym owner reviews staff applications */
+    /** Gym owner reviews a staff application — shows applicant profile + their uploaded docs */
     public function reviewAction(): void
     {
         $user = $this->requireLogin();
@@ -167,12 +126,14 @@ final class StaffController extends Controller
         $id = (int)($_GET['id'] ?? 0);
         $appModel = new StaffApplication();
         $app = $appModel->findById($id);
-        if (!$app) { $this->redirect('home/index'); }
+        if (!$app) { $this->redirect('staff/applications'); }
 
-        $docLabels = [
-            'medical_certificate' => 'Medical Certificate',
-            'resume'              => 'Resume / CV',
-        ];
+        // Load applicant's profile and their uploaded documents
+        $userModel     = new User();
+        $applicantUser = $userModel->findById((int)$app['user_id']);
+
+        $docModel  = new UserDocument();
+        $userDocs  = $docModel->tableExists() ? $docModel->findByUserId((int)$app['user_id']) : [];
 
         $error = ''; $success = '';
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -183,21 +144,26 @@ final class StaffController extends Controller
                 $appModel->updateStatus($id, 'approved', $feedback, (int)$user['id']);
                 (new Employee())->create((int)$app['user_id'], $app['application_type'], (int)$user['id']);
                 (new User())->updateRole((int)$app['user_id'], $app['application_type']);
+
+                if ($app['application_type'] === 'maintenance') {
+                    (new \App\Models\MaintenanceStaff())->create((int)$app['user_id'], (int)$user['id'], (int)$user['id']);
+                }
+
                 $legalDocModel = new \App\Models\LegalDocument();
                 $legalDocModel->decrementStaffCount((int)$user['id'], $app['application_type']);
-                // Notify applicant
+
+                $posLabel = $app['application_type'] === 'trainer' ? 'Fitness Trainer' : 'Maintenance Officer';
                 $this->notify(
                     (int)$app['user_id'],
                     'Staff Application Approved — You are now hired!',
-                    'Congratulations! You have been approved as ' . ucfirst($app['application_type']) . ' at ' . ($user['fullname'] ?? 'the gym') . '.',
+                    'Congratulations! You have been approved as ' . $posLabel . ' at ' . ($user['fullname'] ?? 'the gym') . '. Please log out and log back in to access your new dashboard.',
                     'success',
                     'home/index'
                 );
-                $success = 'Application approved! User is now a ' . ucfirst($app['application_type']) . '.';
+                $success = 'Application approved! User is now a ' . $posLabel . '.';
 
             } elseif ($action === 'reject') {
                 $appModel->updateStatus($id, 'rejected', $feedback, (int)$user['id']);
-                // Notify applicant
                 $this->notify(
                     (int)$app['user_id'],
                     'Staff Application Rejected',
@@ -206,56 +172,20 @@ final class StaffController extends Controller
                     'staff/gyms'
                 );
                 $success = 'Application rejected.';
-
-            } elseif ($action === 'update_doc_status') {
-                // Per-document status update
-                $docField  = $_POST['doc_field']  ?? '';
-                $docStatus = $_POST['doc_status']  ?? 'pending';
-                $docComment = trim((string)($_POST['doc_comment'] ?? ''));
-                $docChecked = !empty($_POST['doc_checked']);
-
-                if (in_array($docField, array_keys($docLabels), true)) {
-                    $appModel->updateDocStatus($id, $docField, $docStatus, $docComment, $docChecked);
-                    $appModel->recomputeOverallStatus($id, (int)$user['id']);
-
-                    // Refresh app data after recompute
-                    $app = $appModel->findById($id);
-                    $label = $docLabels[$docField];
-
-                    if ($docStatus === 'approved') {
-                        $msg = "Your $label has been approved.";
-                        if ($docComment !== '') { $msg .= " Note: $docComment"; }
-                        $this->notify(
-                            (int)$app['user_id'],
-                            "$label Approved — Staff Application",
-                            $msg,
-                            'success',
-                            'staff/apply&gym_id=' . ($app['gym_owner_id'] ?? 0)
-                        );
-                        $success = "$label approved and applicant notified.";
-                    } elseif ($docStatus === 'flagged') {
-                        $msg = $docComment !== ''
-                            ? $docComment
-                            : "Your $label was flagged. Please review and upload a corrected copy.";
-                        $this->notify(
-                            (int)$app['user_id'],
-                            "$label Flagged — Action Required",
-                            $msg,
-                            'danger',
-                            'staff/apply&gym_id=' . ($app['gym_owner_id'] ?? 0)
-                        );
-                        $success = "$label flagged and applicant notified.";
-                    } else {
-                        $success = 'Document status updated.';
-                    }
-                } else {
-                    $error = 'Invalid document field.';
-                }
             }
+
+            // Refresh data after action
             $app = $appModel->findById($id);
         }
 
-        $this->view('staff/review', ['user' => $user, 'app' => $app, 'error' => $error, 'success' => $success]);
+        $this->view('staff/review', [
+            'user'          => $user,
+            'app'           => $app,
+            'applicantUser' => $applicantUser,
+            'userDocs'      => $userDocs,
+            'error'         => $error,
+            'success'       => $success,
+        ]);
     }
 
     /** Gym owner views all staff applications */
@@ -264,8 +194,8 @@ final class StaffController extends Controller
         $user = $this->requireLogin();
         if ($user['role'] !== 'gym_owner') { $this->redirect('home/index'); }
 
-        $appModel = new StaffApplication();
-        $apps = $appModel->findByGymOwner((int)$user['id']);
+        $appModel  = new StaffApplication();
+        $apps      = $appModel->findByGymOwner((int)$user['id']);
         $employees = (new Employee())->findByGymOwner((int)$user['id']);
         $this->view('staff/applications', ['user' => $user, 'apps' => $apps, 'employees' => $employees]);
     }

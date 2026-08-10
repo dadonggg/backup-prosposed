@@ -27,8 +27,58 @@ $docFields = [
 ?>
 
 <div class="row g-4">
-    <!-- Left: Per-document review cards -->
+    <!-- Left: Gym details and per-document review cards -->
     <div class="col-lg-8">
+        <!-- Gym details summary -->
+        <div class="card mb-4">
+            <div class="card-header px-3 py-2">
+                <h2 class="h6 mb-0"><i class="bi bi-building me-1"></i>Gym Details</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center mb-3 mb-md-0">
+                        <?php if (!empty($doc['gym_logo'])): ?>
+                            <img src="public/<?= htmlspecialchars($doc['gym_logo']) ?>" alt="Gym Logo" class="img-fluid rounded border" style="max-height: 120px; object-fit: contain;">
+                        <?php else: ?>
+                            <div class="bg-light rounded border d-flex align-items-center justify-content-center" style="height: 120px;">
+                                <i class="bi bi-building display-6 text-muted"></i>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-9">
+                        <h3 class="h5 mb-2"><?= htmlspecialchars($doc['gym_name'] ?? 'N/A') ?></h3>
+                        <p class="mb-2"><strong>Address:</strong> <?= htmlspecialchars($doc['gym_address'] ?? 'N/A') ?></p>
+                        <?php if (!empty($doc['street_address'])): ?>
+                            <div class="row small text-muted mb-3 ms-1">
+                                <div class="col-sm-6 ps-0">
+                                    <strong>Street:</strong> <?= htmlspecialchars($doc['street_address']) ?><br>
+                                    <strong>Barangay:</strong> <?= htmlspecialchars($doc['barangay']) ?>
+                                </div>
+                                <div class="col-sm-6 ps-0">
+                                    <strong>City:</strong> <?= htmlspecialchars($doc['city_municipality']) ?><br>
+                                    <strong>Province:</strong> <?= htmlspecialchars($doc['province']) ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <h4 class="h6 mb-2">Staff Requested</h4>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="badge bg-warning text-dark">Maintenance Staff: <?= (int)($doc['maintenance_count'] ?? 0) ?></span>
+                            <span class="badge bg-success">Fitness Trainers: <?= (int)($doc['trainer_count'] ?? 0) ?></span>
+                            <?php if (!empty($doc['other_staff_needed'])): 
+                                $others = json_decode($doc['other_staff_needed'], true);
+                                if (is_array($others) && !empty($others)): 
+                                    foreach ($others as $item): ?>
+                                        <span class="badge bg-secondary"><?= htmlspecialchars($item['role']) ?>: <?= (int)$item['count'] ?></span>
+                                    <?php endforeach; 
+                                endif; 
+                            endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-file-earmark-check me-1"></i>Document Verification Checklist</h2></div>
             <div class="card-body">
@@ -41,16 +91,14 @@ $docFields = [
                         $docComment = $doc[$commentKey] ?? '';
                         $docChecked = (int)($doc[$checkedKey] ?? 0);
 
-                        $statusBadge = match($docStatus) {
+                        $statusBadge = [
                             'approved' => 'bg-success',
                             'flagged' => 'bg-danger',
-                            default => 'bg-warning text-dark'
-                        };
-                        $statusIcon = match($docStatus) {
+                        ][$docStatus] ?? 'bg-warning text-dark';
+                        $statusIcon = [
                             'approved' => 'bi-check-circle-fill text-success',
                             'flagged' => 'bi-exclamation-triangle-fill text-danger',
-                            default => 'bi-clock-fill text-warning'
-                        };
+                        ][$docStatus] ?? 'bi-clock-fill text-warning';
                     ?>
                     <div class="col-md-6">
                         <div class="border rounded p-3" style="border-color:rgba(27,107,42,.15)!important">
@@ -107,13 +155,12 @@ $docFields = [
             <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-clipboard-check me-1"></i>Overall Status</h2></div>
             <div class="card-body">
                 <?php
-                $badge = match($doc['status']) {
+                $badge = [
                     'pending' => 'bg-warning text-dark',
                     'verified' => 'bg-success',
                     'resubmit' => 'bg-danger',
                     'rejected' => 'bg-dark',
-                    default => 'bg-secondary'
-                };
+                ][$doc['status']] ?? 'bg-secondary';
                 ?>
                 <div class="text-center mb-3">
                     <span class="badge <?= $badge ?>" style="font-size:.9rem;padding:8px 16px"><?= ucfirst($doc['status']) ?></span>
@@ -123,7 +170,7 @@ $docFields = [
                 <div class="small mb-3">
                     <?php foreach ($docFields as $key => $label):
                         $s = $doc[$key . '_status'] ?? 'pending';
-                        $icon = match($s) { 'approved'=>'bi-check-circle text-success', 'flagged'=>'bi-x-circle text-danger', default=>'bi-dash-circle text-warning' };
+                        $icon = [ 'approved'=>'bi-check-circle text-success', 'flagged'=>'bi-x-circle text-danger' ][$s] ?? 'bi-dash-circle text-warning';
                     ?>
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <i class="bi <?= $icon ?>"></i>

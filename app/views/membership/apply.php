@@ -198,31 +198,126 @@ $autoMI        = $user['middle_initial'] ?? '';
         </div>
     <?php endif; ?>
 
-    <!-- Available Services Card -->
-    <?php if (!empty($services)): ?>
+    <!-- Available Services & Pricing Card -->
     <div class="card mb-4">
-        <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-tags me-1"></i>Available Services & Pricing</h2></div>
+        <div class="card-header px-3 py-2">
+            <h2 class="h6 mb-0"><i class="bi bi-tags me-1"></i>Available Services & Pricing</h2>
+        </div>
         <div class="card-body p-0">
+            <!-- Membership Plans Section -->
+            <?php if (!empty($plans)): ?>
+            <div class="px-3 pt-3 pb-2 bg-light border-bottom">
+                <h6 class="text-primary mb-0"><i class="bi bi-calendar-check me-1"></i>Membership Plans (Duration-Based)</h6>
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
-                    <thead><tr><th>Service</th><th>Member Price</th><th>Non-Member Price</th></tr></thead>
+                    <thead class="table-light">
+                        <tr>
+                            <th>Plan Name</th>
+                            <th>Duration</th>
+                            <th>Price</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        <?php foreach ($services as $s): ?>
+                        <?php foreach ($plans as $plan): ?>
                         <tr>
                             <td>
-                                <strong><?= htmlspecialchars($s['name']) ?></strong>
-                                <?php if ($s['description']): ?><br><small class="text-muted"><?= htmlspecialchars($s['description']) ?></small><?php endif; ?>
+                                <strong><?= htmlspecialchars($plan['name']) ?></strong>
+                                <?php if ($plan['description']): ?>
+                                <br><small class="text-muted"><?= htmlspecialchars($plan['description']) ?></small>
+                                <?php endif; ?>
                             </td>
-                            <td class="fw-bold text-success">₱<?= number_format((float)$s['member_price'], 2) ?></td>
-                            <td>₱<?= number_format((float)$s['non_member_price'], 2) ?></td>
+                            <td><?= $plan['duration_days'] ?> days</td>
+                            <td class="fw-bold text-success">₱<?= number_format((float)$plan['price'], 2) ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
+            <?php else: ?>
+            <div class="px-3 py-3">
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-1"></i>No membership plans available yet.
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Training Services Section -->
+            <?php if (!empty($trainerPackages)): ?>
+            <div class="px-3 pt-3 pb-2 bg-light border-bottom border-top">
+                <h6 class="text-warning mb-0"><i class="bi bi-person-badge me-1"></i>Training Services (Session-Based) - Optional</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Service Name</th>
+                            <th>Sessions</th>
+                            <th>Price per Package</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($trainerPackages as $pkg): 
+                            $__tt = $pkg['training_type'];
+                            if ($__tt === 'personal_training') { $trainingTypeLabel = 'Personal Training'; }
+                            elseif ($__tt === 'pilates') { $trainingTypeLabel = 'Pilates'; }
+                            elseif ($__tt === 'yoga') { $trainingTypeLabel = 'Yoga'; }
+                            else { $trainingTypeLabel = 'All Types'; }
+                        ?>
+                        <tr>
+                            <td>
+                                <strong><?= htmlspecialchars($pkg['package_name']) ?></strong>
+                                <span class="badge bg-info ms-2"><?= $trainingTypeLabel ?></span>
+                                <?php if ($pkg['description']): ?>
+                                <br><small class="text-muted"><?= htmlspecialchars($pkg['description']) ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= $pkg['session_count'] ?> sessions (<?= $pkg['duration_minutes'] ?> min each)</td>
+                            <td class="fw-bold text-warning">₱<?= number_format((float)$pkg['price'], 2) ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+
+            <!-- Gym Services Section (Zumba, Sauna, Group Classes, etc.) -->
+            <?php if (!empty($services)): ?>
+            <div class="px-3 pt-3 pb-2 bg-light border-bottom border-top">
+                <h6 class="text-success mb-0"><i class="bi bi-stars me-1"></i>Gym Services (Add-On) — Optional</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Service</th>
+                            <th>Description</th>
+                            <th>Member Price</th>
+                            <th>Non-Member Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($services as $svc): ?>
+                        <tr>
+                            <td><strong><?= htmlspecialchars($svc['name']) ?></strong></td>
+                            <td class="small text-muted"><?= htmlspecialchars($svc['description'] ?? '—') ?></td>
+                            <td class="fw-bold text-success">₱<?= number_format((float)($svc['member_price'] ?? 0), 2) ?></td>
+                            <td class="text-muted">₱<?= number_format((float)($svc['non_member_price'] ?? 0), 2) ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+
+            <?php if (empty($plans) && empty($trainerPackages) && empty($services)): ?>
+            <div class="px-3 py-4 text-center">
+                <i class="bi bi-inbox display-4 text-muted"></i>
+                <p class="text-muted mt-2 mb-0">No services available yet. Please check back later.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
-    <?php endif; ?>
 
     <div class="card">
         <div class="card-header px-3 py-2"><h2 class="h6 mb-0">Membership Application Form</h2></div>
@@ -251,28 +346,92 @@ $autoMI        = $user['middle_initial'] ?? '';
                     <input class="form-control" id="phone_number" type="tel" name="phone_number" required>
                 </div>
                 <div>
-                    <label class="form-label" for="service_id">Select Service <span class="text-danger">*</span></label>
-                    <select class="form-select" name="service_id" id="service_id" required onchange="updateServicePrice(this)">
-                        <option value="">— Select a service —</option>
-                        <?php if (!empty($services)): ?>
-                            <?php foreach ($services as $s): ?>
-                                <option value="<?= $s['id'] ?>" 
-                                        data-price="<?= $s['member_price'] ?>"
-                                        data-name="<?= htmlspecialchars($s['name']) ?>"
-                                        data-with-trainer="<?= stripos($s['name'], 'trainer') !== false ? '1' : '0' ?>">
-                                    <?= htmlspecialchars($s['name']) ?> — ₱<?= number_format((float)$s['member_price'], 2) ?>
+                    <label class="form-label" for="membership_plan_id">Select Membership Plan <span class="text-danger">*</span></label>
+                    <select class="form-select" name="membership_plan_id" id="membership_plan_id" required onchange="updatePricing()">
+                        <option value="">— Select a membership plan —</option>
+                        <?php if (!empty($plans)): ?>
+                            <?php foreach ($plans as $plan): ?>
+                                <option value="<?= $plan['id'] ?>" 
+                                        data-price="<?= $plan['price'] ?>"
+                                        data-name="<?= htmlspecialchars($plan['name']) ?>"
+                                        data-duration="<?= $plan['duration_days'] ?>">
+                                    <?= htmlspecialchars($plan['name']) ?> — ₱<?= number_format((float)$plan['price'], 2) ?> (<?= $plan['duration_days'] ?> days)
                                 </option>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <option value="" disabled>No services available</option>
+                            <option value="" disabled>No membership plans available</option>
                         <?php endif; ?>
                     </select>
                     <div class="form-text">
-                        <i class="bi bi-info-circle me-1"></i>If you select a service with <strong>"Personal Trainer"</strong>, the Administrative Officer will assign a trainer to you after approval.
+                        <i class="bi bi-info-circle me-1"></i>Choose your membership duration and access level.
                     </div>
                 </div>
+                
+                <div>
+                    <label class="form-label" for="training_package_id">Select Training Package <span class="text-muted">(Optional)</span></label>
+                    <select class="form-select" name="training_package_id" id="training_package_id" onchange="updatePricing()">
+                        <option value="">— None —</option>
+                        <?php if (!empty($trainerPackages)): ?>
+                            <?php foreach ($trainerPackages as $pkg):
+                                $__tt = $pkg['training_type'];
+                                if ($__tt === 'personal_training') { $trainingTypeLabel = 'Personal Training'; }
+                                elseif ($__tt === 'pilates') { $trainingTypeLabel = 'Pilates'; }
+                                elseif ($__tt === 'yoga') { $trainingTypeLabel = 'Yoga'; }
+                                else { $trainingTypeLabel = 'All Types'; }
+                            ?>
+                                <option value="<?= $pkg['id'] ?>"
+                                        data-price="<?= $pkg['price'] ?>"
+                                        data-name="<?= htmlspecialchars($pkg['package_name']) ?>"
+                                        data-sessions="<?= $pkg['session_count'] ?>"
+                                        data-type="<?= $trainingTypeLabel ?>">
+                                    <?= htmlspecialchars($pkg['package_name']) ?> (<?= $trainingTypeLabel ?>) — <?= $pkg['session_count'] ?> sessions — ₱<?= number_format((float)$pkg['price'], 2) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <option value="" disabled>No training packages available</option>
+                        <?php endif; ?>
+                    </select>
+                    <div class="form-text">
+                        <i class="bi bi-info-circle me-1"></i>If you select a training package, the <strong>Administrative Officer will assign a trainer</strong> to you after approval.
+                    </div>
+                </div>
+
+                <?php if (!empty($services)): ?>
+                <div>
+                    <label class="form-label" for="gym_service_id">Select Gym Service <span class="text-muted">(Optional)</span></label>
+                    <select class="form-select" name="gym_service_id" id="gym_service_id" onchange="updatePricing()">
+                        <option value="">— None (No Add-On Service) —</option>
+                        <?php foreach ($services as $svc): ?>
+                            <option value="<?= (int)$svc['id'] ?>"
+                                    data-price="<?= (float)($svc['member_price'] ?? 0) ?>"
+                                    data-name="<?= htmlspecialchars($svc['name']) ?>">
+                                <?= htmlspecialchars($svc['name']) ?><?= !empty($svc['description']) ? ' — ' . htmlspecialchars($svc['description']) : '' ?> — ₱<?= number_format((float)($svc['member_price'] ?? 0), 2) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">
+                        <i class="bi bi-stars me-1 text-success"></i>Optional add-on gym service (e.g. Zumba, Sauna, Group Classes). Member pricing applied.
+                    </div>
+                </div>
+                <?php endif; ?>
+                
                 <div id="price_display" class="alert alert-info" style="display:none;">
-                    <strong>Amount to Pay:</strong> <span id="price_amount">₱0.00</span>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Membership Plan:</strong>
+                        <span id="plan_price_text" class="fw-bold">₱0.00</span>
+                    </div>
+                    <div id="training_price_section" style="display:none;" class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Training Package:</strong>
+                        <span id="training_price_text" class="fw-bold">₱0.00</span>
+                    </div>
+                    <div id="gym_service_price_section" style="display:none;" class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Gym Service:</strong>
+                        <span id="gym_service_price_text" class="fw-bold">₱0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-1">
+                        <strong class="fs-5">Total Amount to Pay:</strong>
+                        <span id="total_price_amount" class="fs-4 fw-bold text-success">₱0.00</span>
+                    </div>
                 </div>
                 <div>
                     <label class="form-label" for="payment_mode">Payment Mode <span class="text-danger">*</span></label>
@@ -291,14 +450,49 @@ $autoMI        = $user['middle_initial'] ?? '';
 <?php endif; ?>
 
 <script>
-function updateServicePrice(select) {
-    var priceDisplay = document.getElementById('price_display');
-    var priceAmount = document.getElementById('price_amount');
-    
-    if (select.value) {
-        var option = select.options[select.selectedIndex];
-        var price = parseFloat(option.getAttribute('data-price'));
-        priceAmount.textContent = '₱' + price.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+function fmt(n) {
+    return '₱' + n.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+}
+function updatePricing() {
+    var planSelect     = document.getElementById('membership_plan_id');
+    var trainingSelect = document.getElementById('training_package_id');
+    var svcSelect      = document.getElementById('gym_service_id');
+    var priceDisplay   = document.getElementById('price_display');
+
+    var planPrice = 0.0, trainingPrice = 0.0, svcPrice = 0.0;
+
+    if (planSelect && planSelect.value) {
+        planPrice = parseFloat(planSelect.options[planSelect.selectedIndex].getAttribute('data-price')) || 0;
+    }
+    if (trainingSelect && trainingSelect.value) {
+        trainingPrice = parseFloat(trainingSelect.options[trainingSelect.selectedIndex].getAttribute('data-price')) || 0;
+    }
+    if (svcSelect && svcSelect.value) {
+        svcPrice = parseFloat(svcSelect.options[svcSelect.selectedIndex].getAttribute('data-price')) || 0;
+    }
+
+    if (planPrice > 0) {
+        document.getElementById('plan_price_text').textContent = fmt(planPrice);
+
+        var trainingSection = document.getElementById('training_price_section');
+        if (trainingPrice > 0) {
+            document.getElementById('training_price_text').textContent = fmt(trainingPrice);
+            trainingSection.style.display = '';
+        } else {
+            trainingSection.style.display = 'none';
+        }
+
+        var svcSection = document.getElementById('gym_service_price_section');
+        if (svcSection) {
+            if (svcPrice > 0) {
+                document.getElementById('gym_service_price_text').textContent = fmt(svcPrice);
+                svcSection.style.display = '';
+            } else {
+                svcSection.style.display = 'none';
+            }
+        }
+
+        document.getElementById('total_price_amount').textContent = fmt(planPrice + trainingPrice + svcPrice);
         priceDisplay.style.display = '';
     } else {
         priceDisplay.style.display = 'none';

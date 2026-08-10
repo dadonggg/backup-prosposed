@@ -172,33 +172,65 @@ require __DIR__ . '/../partials/header.php';
 
 <!-- Plans & Services Quick Links -->
 <div class="row g-4 mt-2">
-    <div class="col-lg-6">
+    <div class="col-lg-4">
         <div class="card h-100">
-            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-tags me-2"></i>Gym Services</h2></div>
+            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-calendar-check me-2"></i>Membership Plans</h2></div>
             <div class="card-body">
-                <p class="small text-muted">Add services (Personal Training, Fitness Sessions) with separate member/non-member pricing.</p>
-                <a href="index.php?r=gymowner/services" class="btn btn-warning btn-sm text-dark"><i class="bi bi-arrow-right"></i> Manage Services</a>
+                <p class="small text-muted">Set up duration-based membership plans (Monthly, Quarterly, etc.) with pricing.</p>
+                <a href="index.php?r=gymowner/plans" class="btn btn-success btn-sm"><i class="bi bi-arrow-right"></i> Manage Plans</a>
             </div>
         </div>
     </div>
-    <div class="col-lg-6">
-        <div class="card h-100 border-primary">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-person-badge me-2"></i>Training Pricing</h2></div>
+            <div class="card-body">
+                <p class="small text-muted">Add session-based training packages (Personal Training, Pilates, Yoga) with pricing.</p>
+                <a href="index.php?r=gymowner/trainerpricing" class="btn btn-warning btn-sm text-dark"><i class="bi bi-arrow-right"></i> Manage Training</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-tags me-2"></i>Gym Services</h2></div>
+            <div class="card-body">
+                <p class="small text-muted">Add additional gym services with separate member/non-member pricing.</p>
+                <a href="index.php?r=gymowner/services" class="btn btn-info btn-sm"><i class="bi bi-arrow-right"></i> Manage Services</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- PayMongo Setup -->
+<div class="row g-4 mt-2">
+    <div class="col-lg-12">
+        <div class="card border-primary">
             <div class="card-header px-3 py-2 bg-primary text-white">
                 <h2 class="h6 mb-0"><i class="bi bi-credit-card-2-front me-2"></i>PayMongo Setup</h2>
             </div>
             <div class="card-body">
-                <p class="small text-muted">Configure PayMongo API keys to accept online payments from members.</p>
-                <a href="index.php?r=gymowner/paymongo" class="btn btn-primary btn-sm">
-                    <i class="bi bi-gear"></i> Configure PayMongo
-                </a>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        <i class="bi bi-info-circle"></i> Required for online payments
-                    </small>
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <p class="small text-muted mb-2">Configure PayMongo API keys to accept online payments from members.</p>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> Required for online payments during membership applications
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <a href="index.php?r=gymowner/paymongo" class="btn btn-primary">
+                            <i class="bi bi-gear"></i> Configure PayMongo
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+
+</script>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

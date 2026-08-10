@@ -5,6 +5,9 @@ $currentUser = null;
 $userRole = 'guest';
 $_notifCount = 0;
 $_notifItems = [];
+$_msgUnreadCount = 0;
+$_clientTrainerAssigned = false;
+
 if (!empty($_SESSION['user_id'])) {
     $currentUser = (new \App\Models\User())->findById((int)$_SESSION['user_id']);
     $userRole = $currentUser['role'] ?? 'customer';
@@ -13,6 +16,12 @@ if (!empty($_SESSION['user_id'])) {
     if ($__notifModel->tableExists()) {
         $_notifCount = $__notifModel->countUnread((int)$_SESSION['user_id']);
         $_notifItems = $__notifModel->getUnread((int)$_SESSION['user_id'], 8);
+    }
+    // Unread message count
+    $__msgModel = new \App\Models\Message();
+    $_msgUnreadCount = $__msgModel->getUnreadCount((int)$_SESSION['user_id']);
+    if ($userRole === 'customer') {
+        $_clientTrainerAssigned = !empty($__msgModel->getClientTrainerInfo((int)$_SESSION['user_id']));
     }
 }
 ?>
@@ -71,40 +80,87 @@ if (!empty($_SESSION['user_id'])) {
             width: auto;
         }
 
+        /* Header Avatar */
+        .nav-avatar-img {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--nf-green);
+        }
+        .nav-avatar-circle {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1B6B2A, #2E8B3E);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: .85rem;
+            border: 2px solid var(--nf-green);
+        }
+
         /* ─── Sidebar ─── */
         .sidebar {
-            min-height: calc(100vh - 56px);
+            position: sticky;
+            top: 56px;
+            height: calc(100vh - 56px);
+            overflow-y: auto;
             background: var(--nf-sidebar);
             border-right: 1px solid rgba(255,255,255,.06);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,.2) transparent;
         }
-        .sidebar .nav-link {
-            color: rgba(255,255,255,.7);
+        .sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,.2);
+            border-radius: 4px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,.4);
+        }
+        .sidebar .nav-link, 
+        .sidebar .nav-link:link, 
+        .sidebar .nav-link:visited {
+            color: rgba(255, 255, 255, 0.95) !important;
             padding: .65rem 1.2rem;
             border-radius: .5rem;
             margin: 2px 8px;
             font-size: .875rem;
-            font-weight: 500;
+            font-weight: 600;
             transition: all .2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .sidebar .nav-link span {
+            color: rgba(255, 255, 255, 0.95) !important;
         }
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            color: #fff;
-            background: var(--nf-sidebar-hover);
+            color: #ffffff !important;
+            background: linear-gradient(90deg, #1B6B2A, #2E8B3E) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         .sidebar .nav-link i {
             width: 20px;
             text-align: center;
             margin-right: 8px;
-            color: var(--nf-accent);
+            color: #4CAF50 !important;
+            font-size: 1.05rem;
         }
         .sidebar .nav-section {
-            color: rgba(255,255,255,.4);
-            font-size: .7rem;
+            color: #a5d6a7 !important;
+            font-size: .72rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: .5rem 1.2rem;
+            letter-spacing: 1.2px;
+            padding: .6rem 1.2rem .3rem;
             margin-top: .75rem;
-            font-weight: 600;
+            font-weight: 700 !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
         }
 
         /* ─── Main content ─── */
@@ -259,24 +315,17 @@ if (!empty($_SESSION['user_id'])) {
         dl.row dd { color: var(--nf-text); }
 
         /* ─── Notification Bell ─── */
-        .notif-bell { position: relative; cursor: pointer; }
-        .notif-bell .badge {
-            position: absolute; top: -4px; right: -6px;
-            font-size: .6rem; padding: 2px 5px;
-            border-radius: 10px; min-width: 16px;
-        }
+        .notif-bell { position: relative; cursor: pointer; display: flex; align-items: center; padding: 6px; }
+        .notif-bell .badge { position: absolute; top: 0; right: 0; font-size: .65rem; border-radius: 50px; }
         .notif-dropdown {
-            position: absolute; right: 0; top: 100%; z-index: 1050;
-            width: 340px; max-height: 400px; overflow-y: auto;
-            background: #fff; border: 1px solid var(--nf-border);
-            border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
-            display: none;
+            display: none; position: absolute; top: 100%; right: 0; width: 320px;
+            background: #fff; border: 1px solid var(--nf-border); border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12); z-index: 1050; margin-top: 8px; overflow: hidden;
         }
         .notif-dropdown.show { display: block; }
         .notif-dropdown .notif-header {
-            padding: 10px 14px; border-bottom: 1px solid var(--nf-border);
-            font-weight: 600; font-size: .85rem;
-            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 14px; background: rgba(27,107,42,.04); border-bottom: 1px solid var(--nf-border);
+            font-weight: 600; font-size: .85rem; display: flex; justify-content: space-between; align-items: center;
         }
         .notif-dropdown .notif-item {
             padding: 10px 14px; border-bottom: 1px solid rgba(0,0,0,.04);
@@ -299,9 +348,30 @@ if (!empty($_SESSION['user_id'])) {
         </a>
         <div class="ms-auto d-flex gap-2 align-items-center">
             <?php if ($currentUser): ?>
-                <span class="nav-user-name small d-none d-md-inline"><?= htmlspecialchars($currentUser['fullname'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
+                <a href="index.php?r=account/settings" class="d-flex align-items-center gap-2 text-decoration-none me-1">
+                    <?php if (!empty($currentUser['profile_picture_url'])): ?>
+                        <img src="public/<?= htmlspecialchars(ltrim($currentUser['profile_picture_url'], '/')) ?>" class="nav-avatar-img" alt="Profile Picture">
+                    <?php else: ?>
+                        <?php
+                            $nameParts = explode(' ', trim($currentUser['fullname'] ?? 'User'));
+                            $inits = strtoupper(substr($nameParts[0] ?? 'U', 0, 1) . substr($nameParts[count($nameParts)-1] ?? '', 0, 1));
+                        ?>
+                        <div class="nav-avatar-circle"><?= htmlspecialchars($inits) ?></div>
+                    <?php endif; ?>
+                    <span class="nav-user-name small d-none d-md-inline fw-semibold text-dark"><?= htmlspecialchars($currentUser['fullname'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
+                </a>
                 <?php
-                $roleLabels = ['customer'=>'Fitness Enthusiast','gym_owner'=>'Gym Owner','admin'=>'Admin','administrative_officer'=>'Administrative Officer','trainer'=>'Trainer','maintenance'=>'Maintenance'];
+                $roleLabels = [
+                    'customer'=>'Fitness Enthusiast',
+                    'gym_owner'=>'Gym Owner',
+                    'admin'=>'Admin',
+                    'administrative_officer'=>'Administrative Officer',
+                    'trainer'=>'Fitness Trainer',
+                    'fitness_trainer'=>'Fitness Trainer',
+                    'maintenance'=>'Maintenance Officer',
+                    'maintenance_officer'=>'Maintenance Officer',
+                    'marketing_officer'=>'Marketing Officer'
+                ];
                 $roleLabel = $roleLabels[$userRole] ?? ucwords(str_replace('_',' ',$userRole));
                 ?>
                 <span class="nav-badge-role"><?= htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8') ?></span>
@@ -322,12 +392,11 @@ if (!empty($_SESSION['user_id'])) {
                             <div class="notif-empty"><i class="bi bi-check-circle me-1"></i>No new notifications</div>
                         <?php else: ?>
                             <?php foreach ($_notifItems as $__n):
-                                $__icon = match($__n['type'] ?? 'info') {
-                                    'success'=>'bi-check-circle-fill text-success',
-                                    'warning'=>'bi-exclamation-triangle-fill text-warning',
-                                    'danger'=>'bi-x-circle-fill text-danger',
-                                    default=>'bi-info-circle-fill text-info'
-                                };
+                                $__nt = $__n['type'] ?? 'info';
+                                if ($__nt === 'success') { $__icon = 'bi-check-circle-fill text-success'; }
+                                elseif ($__nt === 'warning') { $__icon = 'bi-exclamation-triangle-fill text-warning'; }
+                                elseif ($__nt === 'danger') { $__icon = 'bi-x-circle-fill text-danger'; }
+                                else { $__icon = 'bi-info-circle-fill text-info'; }
                                 $__link = $__n['link'] ? 'index.php?r=notification/markread&id='.$__n['id'].'&link='.urlencode($__n['link']) : '#';
                             ?>
                             <a class="notif-item" href="<?= $__link ?>">
@@ -340,6 +409,7 @@ if (!empty($_SESSION['user_id'])) {
                         <a href="index.php?r=notification/index" class="notif-item" style="text-align:center;font-weight:600;color:var(--nf-green)">View All Notifications</a>
                     </div>
                 </div>
+                <a class="btn btn-outline-secondary btn-sm" href="index.php?r=account/settings" title="Account Settings"><i class="bi bi-gear"></i> Settings</a>
                 <a class="btn btn-outline-secondary btn-sm" href="index.php?r=home/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
             <?php else: ?>
                 <a class="btn btn-outline-primary btn-sm" href="index.php?r=auth/register">Register</a>
@@ -353,52 +423,119 @@ if (!empty($_SESSION['user_id'])) {
 <div class="d-flex">
     <aside class="sidebar d-none d-md-block" style="width:240px;flex-shrink:0">
         <nav class="nav flex-column py-3">
-            <a class="nav-link" href="index.php?r=home/index"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <a class="nav-link" href="index.php?r=home/index"><span><i class="bi bi-speedometer2"></i> Dashboard</span></a>
 
             <?php if ($userRole === 'customer'): ?>
                 <div class="nav-section">Gym Owner</div>
-                <a class="nav-link" href="index.php?r=gymowner/apply"><i class="bi bi-building"></i> Apply as Gym Owner</a>
+                <a class="nav-link" href="index.php?r=gymowner/apply"><span><i class="bi bi-building"></i> Apply as Gym Owner</span></a>
                 <div class="nav-section">Staff</div>
-                <a class="nav-link" href="index.php?r=staff/apply"><i class="bi bi-person-badge"></i> Apply as Staff</a>
+                <a class="nav-link" href="index.php?r=staff/apply"><span><i class="bi bi-person-badge"></i> Apply as Staff</span></a>
                 <div class="nav-section">Membership</div>
-                <a class="nav-link" href="index.php?r=membership/apply"><i class="bi bi-card-checklist"></i> Apply for Membership</a>
-                <a class="nav-link" href="index.php?r=membership/verifycode"><i class="bi bi-qr-code"></i> Verify Membership</a>
+                <a class="nav-link" href="index.php?r=membership/apply"><span><i class="bi bi-card-checklist"></i> Apply for Membership</span></a>
+                <a class="nav-link" href="index.php?r=membership/verifycode"><span><i class="bi bi-qr-code"></i> Verify Membership</span></a>
+                <div class="nav-section">Fitness Training</div>
+                <a class="nav-link" href="index.php?r=membership/fitnessprogram"><span><i class="bi bi-lightning-charge-fill"></i> My Fitness Program</span></a>
+                <a class="nav-link" href="index.php?r=fitness/profile"><span><i class="bi bi-file-earmark-person-fill"></i> Fill Fitness Profile</span></a>
+                <a class="nav-link" href="index.php?r=fitness/directory"><span><i class="bi bi-search-heart-fill"></i> Find a Coach</span></a>
+                <a class="nav-link" href="index.php?r=fitness/status"><span><i class="bi bi-clipboard-check"></i> My Training Status</span></a>
+                
+                <?php if ($_clientTrainerAssigned): ?>
+                    <a class="nav-link" href="index.php?r=message/index">
+                        <span><i class="bi bi-chat-dots-fill"></i> Messages</span>
+                        <?php if ($_msgUnreadCount > 0): ?>
+                            <span class="badge bg-danger rounded-pill"><?= $_msgUnreadCount ?></span>
+                        <?php endif; ?>
+                    </a>
+                <?php else: ?>
+                    <a class="nav-link opacity-50" href="index.php?r=message/index" title="Trainer assignment required">
+                        <span><i class="bi bi-chat-dots"></i> Messages</span>
+                        <span class="badge bg-secondary rounded-pill" style="font-size:.65rem;">Locked</span>
+                    </a>
+                <?php endif; ?>
+
+                <div class="nav-section">Gym</div>
+                <a class="nav-link" href="index.php?r=member/equipment"><span><i class="bi bi-tools"></i> Gym Equipment</span></a>
+                <a class="nav-link" href="index.php?r=member/campaigns"><span><i class="bi bi-calendar-event"></i> Events &amp; Promotions</span></a>
+                <div class="nav-section">My Coaching</div>
+                <a class="nav-link" href="index.php?r=member/coaching"><span><i class="bi bi-person-arms-up"></i> My Coach &amp; Plan</span></a>
+                <a class="nav-link" href="index.php?r=member/goals"><span><i class="bi bi-bullseye"></i> My Fitness Goals</span></a>
 
             <?php elseif ($userRole === 'gym_owner'): ?>
+                <div class="nav-section">Gym Profile</div>
+                <a class="nav-link" href="index.php?r=gymowner/managegym"><span><i class="bi bi-building-gear"></i> Manage Gym Profile</span></a>
                 <div class="nav-section">Finance</div>
-                <a class="nav-link" href="index.php?r=equipment/budget"><i class="bi bi-wallet2"></i> Financial Dashboard</a>
+                <a class="nav-link" href="index.php?r=equipment/budget"><span><i class="bi bi-wallet2"></i> Financial Dashboard</span></a>
                 <div class="nav-section">Equipment</div>
-                <a class="nav-link" href="index.php?r=equipment/inventory"><i class="bi bi-box-seam"></i> Equipment Inventory</a>
+                <a class="nav-link" href="index.php?r=equipment/inventory"><span><i class="bi bi-box-seam"></i> Equipment Inventory</span></a>
                 <div class="nav-section">Staff & Roles</div>
-                <a class="nav-link" href="index.php?r=staff/applications"><i class="bi bi-people"></i> Staff Applications</a>
-                <a class="nav-link" href="index.php?r=gymowner/users"><i class="bi bi-person-gear"></i> Manage Users</a>
+                <a class="nav-link" href="index.php?r=staff/applications"><span><i class="bi bi-people"></i> Staff Applications</span></a>
+                <a class="nav-link" href="index.php?r=gymowner/users"><span><i class="bi bi-person-gear"></i> Manage Users</span></a>
+                <a class="nav-link" href="index.php?r=message/index"><span><i class="bi bi-chat-square-text-fill"></i> Message Logs</span></a>
                 <div class="nav-section">Memberships</div>
-                <a class="nav-link" href="index.php?r=gymowner/memberships"><i class="bi bi-person-plus"></i> Membership Applications</a>
-                <a class="nav-link" href="index.php?r=gymowner/members"><i class="bi bi-people-fill"></i> Gym Members</a>
-                <a class="nav-link" href="index.php?r=gymowner/attendance"><i class="bi bi-calendar-check"></i> Attendance Log</a>
+                <a class="nav-link" href="index.php?r=gymowner/memberships"><span><i class="bi bi-person-plus"></i> Membership Applications</span></a>
+                <a class="nav-link" href="index.php?r=gymowner/members"><span><i class="bi bi-people-fill"></i> Gym Members</span></a>
+                <a class="nav-link" href="index.php?r=gymowner/attendance"><span><i class="bi bi-calendar-check"></i> Attendance Log</span></a>
                 <div class="nav-section">Plans & Services</div>
-                <a class="nav-link" href="index.php?r=gymowner/plans"><i class="bi bi-card-list"></i> Membership Plans</a>
-                <a class="nav-link" href="index.php?r=gymowner/services"><i class="bi bi-tags"></i> Gym Services</a>
+                <a class="nav-link" href="index.php?r=gymowner/plans"><span><i class="bi bi-card-list"></i> Membership Plans</span></a>
+                <a class="nav-link" href="index.php?r=gymowner/services"><span><i class="bi bi-tags"></i> Gym Services</span></a>
+                <a class="nav-link" href="index.php?r=gymowner/trainerpricing"><span><i class="bi bi-person-badge"></i> Training Pricing</span></a>
+                <div class="nav-section">Maintenance</div>
+                <a class="nav-link" href="index.php?r=gymowner/maintenancereports"><span><i class="bi bi-clipboard2-check"></i> Maintenance Reports</span></a>
 
             <?php elseif ($userRole === 'admin'): ?>
                 <div class="nav-section">Reviews</div>
-                <a class="nav-link" href="index.php?r=admin/legalreviews"><i class="bi bi-file-earmark-check"></i> Legal Documents</a>
+                <a class="nav-link" href="index.php?r=admin/legalreviews"><span><i class="bi bi-file-earmark-check"></i> Legal Documents</span></a>
                 <div class="nav-section">Security</div>
-                <a class="nav-link" href="index.php?r=admin/loginactivities"><i class="bi bi-shield-check"></i> Login Activity</a>
-
+                <a class="nav-link" href="index.php?r=admin/loginactivities"><span><i class="bi bi-shield-check"></i> Login Activity</span></a>
 
             <?php elseif ($userRole === 'administrative_officer'): ?>
                 <div class="nav-section">Memberships</div>
-                <a class="nav-link" href="index.php?r=admofficer/memberships"><i class="bi bi-person-plus"></i> Membership Applications</a>
-                <a class="nav-link" href="index.php?r=admofficer/members"><i class="bi bi-people-fill"></i> Gym Members</a>
-                <a class="nav-link" href="index.php?r=admofficer/attendance"><i class="bi bi-calendar-check"></i> Attendance Log</a>
+                <a class="nav-link" href="index.php?r=admofficer/memberships"><span><i class="bi bi-person-plus"></i> Membership Applications</span></a>
+                <a class="nav-link" href="index.php?r=admofficer/members"><span><i class="bi bi-people-fill"></i> Gym Members</span></a>
+                <a class="nav-link" href="index.php?r=admofficer/attendance"><span><i class="bi bi-calendar-check"></i> Attendance Log</span></a>
+                <div class="nav-section">Fitness Training</div>
+                <a class="nav-link" href="index.php?r=admofficer/fitnessRequests"><span><i class="bi bi-person-hearts"></i> Fitness Requests</span></a>
                 <div class="nav-section">Staff</div>
-                <a class="nav-link" href="index.php?r=admofficer/employees"><i class="bi bi-person-badge"></i> Employee List</a>
+                <a class="nav-link" href="index.php?r=admofficer/employees"><span><i class="bi bi-person-badge"></i> Employee List</span></a>
 
-            <?php elseif ($userRole === 'trainer' || $userRole === 'maintenance'): ?>
-                <div class="nav-section">Info</div>
-                <a class="nav-link" href="index.php?r=home/index"><i class="bi bi-info-circle"></i> My Status</a>
+            <?php elseif ($userRole === 'trainer' || $userRole === 'fitness_trainer'): ?>
+                <div class="nav-section">My Coaching</div>
+                <a class="nav-link" href="index.php?r=trainer/requests"><span><i class="bi bi-inbox"></i> Booking Requests</span></a>
+                <a class="nav-link" href="index.php?r=trainer/clients"><span><i class="bi bi-people"></i> My Clients</span></a>
+                <a class="nav-link" href="index.php?r=message/index">
+                    <span><i class="bi bi-chat-dots-fill"></i> Messages</span>
+                    <?php if ($_msgUnreadCount > 0): ?>
+                        <span class="badge bg-danger rounded-pill"><?= $_msgUnreadCount ?></span>
+                    <?php endif; ?>
+                </a>
+                <a class="nav-link" href="index.php?r=trainer/progress"><span><i class="bi bi-graph-up-arrow"></i> Progress Reviews</span></a>
+                <a class="nav-link" href="index.php?r=trainer/equipment"><span><i class="bi bi-tools"></i> View Equipment</span></a>
+                <div class="nav-section">My Profile</div>
+                <a class="nav-link" href="index.php?r=trainer/manageprofile"><span><i class="bi bi-person-workspace"></i> Profile & Availability</span></a>
+
+            <?php elseif ($userRole === 'maintenance' || $userRole === 'maintenance_officer'): ?>
+                <div class="nav-section">Dashboard</div>
+                <a class="nav-link" href="index.php?r=maintenance/dashboard"><span><i class="bi bi-speedometer2"></i> Dashboard</span></a>
+                <div class="nav-section">Equipment</div>
+                <a class="nav-link" href="index.php?r=maintenance/equipment"><span><i class="bi bi-box-seam"></i> View Equipment</span></a>
+                <a class="nav-link" href="index.php?r=maintenance/equipment"><span><i class="bi bi-clipboard2-plus"></i> Inspect Equipment</span></a>
+                <div class="nav-section">Reports</div>
+                <a class="nav-link" href="index.php?r=maintenance/reports"><span><i class="bi bi-file-earmark-text"></i> My Reports</span></a>
+                <a class="nav-link" href="index.php?r=maintenance/history"><span><i class="bi bi-clock-history"></i> Inspection History</span></a>
+
+            <?php elseif ($userRole === 'marketing_officer'): ?>
+                <div class="nav-section">Marketing</div>
+                <a class="nav-link" href="index.php?r=marketing/dashboard"><span><i class="bi bi-speedometer2"></i> Dashboard</span></a>
+                <a class="nav-link" href="index.php?r=marketing/campaignbuilder"><span><i class="bi bi-layout-text-window-reverse"></i> Campaign Builder</span></a>
+                <a class="nav-link" href="index.php?r=marketing/campaigns"><span><i class="bi bi-megaphone"></i> Ad Campaigns</span></a>
+                <a class="nav-link" href="index.php?r=marketing/promotions"><span><i class="bi bi-tags"></i> Gym Promotions</span></a>
+                <div class="nav-section">Analytics</div>
+                <a class="nav-link" href="index.php?r=marketing/attendance"><span><i class="bi bi-graph-up-arrow"></i> Attendance Log</span></a>
             <?php endif; ?>
+
+            <div class="nav-section">Account</div>
+            <a class="nav-link" href="index.php?r=account/settings"><span><i class="bi bi-person-circle"></i> Profile & Settings</span></a>
+
         </nav>
     </aside>
     <div class="main-content flex-grow-1 p-4">

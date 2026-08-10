@@ -11,7 +11,15 @@ spl_autoload_register(function (string $class): void {
     }
 
     $relativeClass = substr($class, strlen($prefix));
-    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+    $parts = explode('\\', $relativeClass);
+
+    // Lowercase all directories (everything before the final class name)
+    $lastIndex = count($parts) - 1;
+    for ($i = 0; $i < $lastIndex; $i++) {
+        $parts[$i] = strtolower($parts[$i]);
+    }
+
+    $file = $baseDir . implode('/', $parts) . '.php';
 
     if (is_file($file)) {
         require $file;

@@ -3,55 +3,168 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Controller;
+use App\Core\Database;
 use App\Models\User;
-use App\Models\Notification;
 
+/**
+ * Notification Controller
+ * Handles in-app notifications for users
+ */
 final class NotificationController extends Controller
 {
-    private function requireLogin(): array
+    /**
+     * Require authentication
+     */
+    private function requireAuth(): array
     {
-        if (!isset($_SESSION['user_id'])) { $this->redirect('auth/login'); }
+        if (!isset($_SESSION['user_id'])) {
+            $this->redirect('auth/login');
+        }
+        
         $user = (new User())->findById((int)$_SESSION['user_id']);
-        if (!$user) { unset($_SESSION['user_id']); $this->redirect('auth/login'); }
-        return $user;
+        if (!$user) {
+            unset($_SESSION['user_id']);
+            $this->redirect('auth/login');
+        }
+        
+        return ['user' => $user];
     }
-
-    /** View all notifications */
+    
+    /**
+     * Display notifications page
+     * GET: index.php?r=notification/index
+     */
     public function indexAction(): void
     {
-        $user = $this->requireLogin();
-        $notifModel = new Notification();
-        if (!$notifModel->tableExists()) { $this->redirect('home/index'); }
-        $notifications = $notifModel->getAll((int)$user['id']);
-        $this->view('notifications/index', ['user' => $user, 'notifications' => $notifications]);
+        $data = $this->requireAuth();
+        $user = $data['user'];
+        
+        // Get all notifications for this user
+        $pdo = Database::pdo();
+        $stmt = $pdo->prepare(
+            'SELECT * FROM notifications
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC
+             LIMIT 50'
+        );
+        $stmt->execute([':user_id' => $user['id']]);
+        $notifications = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Render view
+        require __DIR__ . '/../views/notifications/index.php';
     }
-
-    /** Mark all as read (AJAX or redirect) */
-    public function markallreadAction(): void
+    
+    /**
+     * Get unread notification count (AJAX)
+     * GET: index.php?r=notification/getUnreadCount
+     */
+    public function getUnreadCountAction(): void
     {
-        $user = $this->requireLogin();
-        $notifModel = new Notification();
-        if ($notifModel->tableExists()) {
-            $notifModel->markAllRead((int)$user['id']);
+        header('Content-Type: application/json');
+        
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+            return;
         }
-        $this->redirect('notification/index');
+        
+        try {
+            $pdo = Database::pdo();
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) as count
+                 FROM notifications
+                 WHERE user_id = :user_id AND is_read = 0'
+            );
+            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            echo json_encode([
+                'success' => true,
+                'count' => (int)($result['count'] ?? 0)
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
     }
-
-    /** Mark single as read */
-    public function markreadAction(): void
+    
+    /**
+     * Mark notification as read (AJAX)
+     * POST: index.php?r=notification/markAsRead
+     */
+    public function markAsReadAction(): void
     {
-        $user = $this->requireLogin();
-        $id = (int)($_GET['id'] ?? 0);
-        $notifModel = new Notification();
-        if ($notifModel->tableExists() && $id > 0) {
-            $notifModel->markRead($id);
+        header('Content-Type: application/json');
+        
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+            return;
         }
-        // Redirect to the notification link if provided
-        $link = trim((string)($_GET['link'] ?? ''));
-        if ($link !== '') {
-            $this->redirect($link);
-        } else {
-            $this->redirect('notification/index');
+        
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $notificationId = (int)($data['notification_id'] ?? 0);
+            
+            if ($notificationId === 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid notification ID']);
+                return;
+            }
+            
+            $pdo = Database::pdo();
+            $stmt = $pdo->prepare(
+                'UPDATE notifications
+                 SET is_read = 1, read_at = NOW()
+                 WHERE id = :id AND user_id = :user_id'
+            );
+            $stmt->execute([
+                ':id' => $notificationId,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Notification marked as read'
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
+     * Mark all notifications as read (AJAX)
+     * POST: index.php?r=notification/markAllAsRead
+     */
+    public function markAllAsReadAction(): void
+    {
+        header('Content-Type: application/json');
+        
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+            return;
+        }
+        
+        try {
+            $pdo = Database::pdo();
+            $stmt = $pdo->prepare(
+                'UPDATE notifications
+                 SET is_read = 1, read_at = NOW()
+                 WHERE user_id = :user_id AND is_read = 0'
+            );
+            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'All notifications marked as read'
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Server error: ' . $e->getMessage()
+            ]);
         }
     }
 }

@@ -37,6 +37,14 @@ final class GymMember extends Model
         return $row ?: null;
     }
 
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db()->prepare('SELECT * FROM gym_members WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
     public function findByMembershipCode(string $code): ?array
     {
         $stmt = $this->db()->prepare(
@@ -51,7 +59,7 @@ final class GymMember extends Model
     public function findAll(): array
     {
         return $this->db()->query(
-            'SELECT gm.*, u.fullname, u.email FROM gym_members gm
+            'SELECT gm.*, u.fullname, u.email, u.profile_picture_url FROM gym_members gm
              JOIN users u ON u.id = gm.user_id ORDER BY gm.created_at DESC'
         )->fetchAll(PDO::FETCH_ASSOC);
     }

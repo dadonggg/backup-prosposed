@@ -34,13 +34,12 @@ require __DIR__ . '/../partials/header.php';
                             <td class="small"><?= htmlspecialchars($doc['email']) ?></td>
                             <td>
                                 <?php
-                                $badge = match($doc['status']) {
+                                $badge = [
                                     'pending' => 'bg-warning text-dark',
                                     'verified' => 'bg-success',
                                     'resubmit' => 'bg-info',
                                     'rejected' => 'bg-danger',
-                                    default => 'bg-secondary'
-                                };
+                                ][$doc['status']] ?? 'bg-secondary';
                                 ?>
                                 <span class="badge <?= $badge ?>"><?= ucfirst($doc['status']) ?></span>
                             </td>

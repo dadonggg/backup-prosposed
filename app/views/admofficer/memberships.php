@@ -53,14 +53,13 @@ if (count($paymentPending) > 0):
                                 </span>
                             </td>
                             <td>
-                                <?php $badge = match($a['status']) {
+                                <?php $badge = [
                                     'pending'  => 'bg-warning text-dark',
                                     'verified' => 'bg-info',
                                     'approved' => 'bg-success',
                                     'rejected' => 'bg-danger',
                                     'resubmit' => 'bg-secondary',
-                                    default    => 'bg-secondary'
-                                }; ?>
+                                ][$a['status']] ?? 'bg-secondary'; ?>
                                 <span class="badge <?= $badge ?>"><?= ucfirst($a['status']) ?></span>
                             </td>
                             <td>
@@ -89,5 +88,7 @@ if (count($paymentPending) > 0):
         </div>
     </div>
 </div>
+
+
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

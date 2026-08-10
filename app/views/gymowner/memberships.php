@@ -27,10 +27,10 @@ require __DIR__ . '/../partials/header.php';
                             <td class="small"><?= ucfirst(str_replace('_', ' ', $a['payment_type'] ?? 'N/A')) ?></td>
                             <td class="small">₱<?= number_format((float)($a['payment_amount'] ?? 0), 2) ?></td>
                             <td>
-                                <?php $badge = match($a['status']) {
+                                <?php $badge = [
                                     'pending'=>'bg-warning text-dark','verified'=>'bg-info','approved'=>'bg-success',
-                                    'rejected'=>'bg-danger','resubmit'=>'bg-secondary',default=>'bg-secondary'
-                                }; ?>
+                                    'rejected'=>'bg-danger','resubmit'=>'bg-secondary'
+                                ][$a['status']] ?? 'bg-secondary'; ?>
                                 <span class="badge <?= $badge ?>"><?= ucfirst($a['status']) ?></span>
                             </td>
                             <td class="small"><?= htmlspecialchars($a['created_at']) ?></td>

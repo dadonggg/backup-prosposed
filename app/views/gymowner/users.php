@@ -4,9 +4,36 @@ $pageTitle = 'Manage Users';
 require __DIR__ . '/../partials/header.php';
 ?>
 
+<style>
+.bg-purple { background-color: #7c3aed !important; }
+.btn-purple { background-color: #7c3aed !important; border-color: #7c3aed !important; color: #fff !important; }
+.btn-purple:hover { background-color: #6d28d9 !important; border-color: #6d28d9 !important; color: #fff !important; }
+.btn-outline-purple { border-color: #7c3aed !important; color: #7c3aed !important; }
+.btn-outline-purple:hover { background-color: #7c3aed !important; color: #fff !important; }
+
+/* Clean single dropdown button layout */
+.role-dropdown-btn {
+    min-width: 140px;
+}
+.role-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.dropdown-item-role {
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.85rem;
+}
+.dropdown-item-role:hover {
+    background-color: #f8f9fa;
+}
+</style>
+
 <div class="mb-4">
     <h1 class="h3 mb-1"><i class="bi bi-person-gear me-2"></i>Manage Users</h1>
-    <p class="text-muted">Assign or revoke the <strong>Administrative Officer</strong> role for registered users.</p>
+    <p class="text-muted">Assign or revoke staff roles for registered users on your platform.</p>
 </div>
 
 <?php if (!empty($success)): ?>
@@ -39,7 +66,7 @@ require __DIR__ . '/../partials/header.php';
                         <th>Email</th>
                         <th>Current Role</th>
                         <th>Registered</th>
-                        <th class="text-center">Action</th>
+                        <th class="text-center" style="width: 180px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -50,47 +77,104 @@ require __DIR__ . '/../partials/header.php';
                     <?php else: ?>
                         <?php foreach ($allUsers as $u): ?>
                         <?php
-                            $roleLabel = match($u['role']) {
-                                'administrative_officer' => ['Administrative Officer', 'bg-primary'],
-                                'gym_owner'              => ['Gym Owner',              'bg-info text-dark'],
-                                'fitness_enthusiast'     => ['Fitness Enthusiast',     'bg-secondary'],
-                                'fitness_trainer'        => ['Fitness Trainer',        'bg-success'],
-                                'maintenance_officer'    => ['Maintenance Officer',    'bg-warning text-dark'],
-                                'customer'               => ['Fitness Enthusiast',     'bg-secondary'],
-                                default                  => [ucfirst(str_replace('_', ' ', $u['role'])), 'bg-secondary'],
-                            };
-                            $isOfficer  = ($u['role'] === 'administrative_officer');
-                            $isProtected = in_array($u['role'], ['admin', 'gym_owner'], true);
+                            $userRole = $u['role'];
+                            $roleConfig = [
+                                'administrative_officer' => ['label' => 'Administrative Officer', 'badge' => 'bg-primary text-white', 'dot' => 'bg-primary'],
+                                'marketing_officer'      => ['label' => 'Marketing Officer',      'badge' => 'bg-purple text-white',  'dot' => 'bg-purple'],
+                                'gym_owner'              => ['label' => 'Gym Owner',              'badge' => 'bg-info text-dark',     'dot' => 'bg-info'],
+                                'fitness_enthusiast'     => ['label' => 'Fitness Enthusiast',     'badge' => 'bg-secondary',          'dot' => 'bg-secondary'],
+                                'fitness_trainer'        => ['label' => 'Fitness Trainer',        'badge' => 'bg-success',            'dot' => 'bg-success'],
+                                'trainer'                => ['label' => 'Fitness Trainer',        'badge' => 'bg-success',            'dot' => 'bg-success'],
+                                'maintenance_officer'    => ['label' => 'Maintenance Officer',    'badge' => 'bg-warning text-dark',  'dot' => 'bg-warning'],
+                                'maintenance'            => ['label' => 'Maintenance Officer',    'badge' => 'bg-warning text-dark',  'dot' => 'bg-warning'],
+                                'customer'               => ['label' => 'Fitness Enthusiast',     'badge' => 'bg-secondary',          'dot' => 'bg-secondary'],
+                            ];
+
+                            $currentLabel = $roleConfig[$userRole]['label'] ?? ucfirst(str_replace('_', ' ', $userRole));
+                            $currentBadge = $roleConfig[$userRole]['badge'] ?? 'bg-secondary';
+                            $isProtected  = in_array($userRole, ['admin', 'gym_owner'], true);
+
+                            // Available staff roles to manage
+                            $assignableRoles = [
+                                [
+                                    'key'    => 'administrative_officer',
+                                    'label'  => 'Administrative Officer',
+                                    'action' => 'index.php?r=gymowner/assignofficer',
+                                    'active' => ($userRole === 'administrative_officer'),
+                                    'dot'    => 'bg-primary',
+                                ],
+                                [
+                                    'key'    => 'marketing_officer',
+                                    'label'  => 'Marketing Officer',
+                                    'action' => 'index.php?r=gymowner/assignmarketingofficer',
+                                    'active' => ($userRole === 'marketing_officer'),
+                                    'dot'    => 'bg-purple',
+                                ],
+                                [
+                                    'key'    => 'fitness_trainer',
+                                    'label'  => 'Fitness Trainer',
+                                    'action' => 'index.php?r=gymowner/assignfitnesstrainer',
+                                    'active' => ($userRole === 'trainer' || $userRole === 'fitness_trainer'),
+                                    'dot'    => 'bg-success',
+                                ],
+                                [
+                                    'key'    => 'maintenance_officer',
+                                    'label'  => 'Maintenance Officer',
+                                    'action' => 'index.php?r=gymowner/assignmaintenanceofficer',
+                                    'active' => ($userRole === 'maintenance' || $userRole === 'maintenance_officer'),
+                                    'dot'    => 'bg-warning',
+                                ],
+                            ];
                         ?>
                         <tr>
                             <td><?= (int)$u['id'] ?></td>
                             <td class="fw-medium"><?= htmlspecialchars($u['fullname']) ?></td>
                             <td class="small text-muted"><?= htmlspecialchars($u['email']) ?></td>
                             <td>
-                                <span class="badge <?= $roleLabel[1] ?>"><?= $roleLabel[0] ?></span>
+                                <span class="badge <?= $currentBadge ?>"><?= $currentLabel ?></span>
                             </td>
-                            <td class="small text-muted"><?= htmlspecialchars($u['created_at']) ?></td>
+                            <td class="small text-muted"><?= date('M d, Y', strtotime($u['created_at'] ?? 'now')) ?></td>
                             <td class="text-center">
                                 <?php if ($isProtected): ?>
                                     <span class="text-muted small"><i class="bi bi-lock-fill"></i> Protected</span>
-                                <?php elseif ($isOfficer): ?>
-                                    <form method="POST" action="index.php?r=gymowner/assignofficer"
-                                          onsubmit="return confirm('Revoke Administrative Officer role from <?= htmlspecialchars(addslashes($u['fullname'])) ?>?')">
-                                        <input type="hidden" name="id"     value="<?= (int)$u['id'] ?>">
-                                        <input type="hidden" name="action" value="revoke">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-person-dash me-1"></i>Revoke Officer
-                                        </button>
-                                    </form>
                                 <?php else: ?>
-                                    <form method="POST" action="index.php?r=gymowner/assignofficer"
-                                          onsubmit="return confirm('Assign <?= htmlspecialchars(addslashes($u['fullname'])) ?> as Administrative Officer?')">
-                                        <input type="hidden" name="id"     value="<?= (int)$u['id'] ?>">
-                                        <input type="hidden" name="action" value="assign">
-                                        <button type="submit" class="btn btn-sm btn-primary">
-                                            <i class="bi bi-person-check me-1"></i>Assign as Officer
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle role-dropdown-btn" 
+                                                type="button" 
+                                                data-bs-toggle="dropdown" 
+                                                aria-expanded="false">
+                                            <i class="bi bi-person-gear me-1"></i> Manage Role
                                         </button>
-                                    </form>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm p-2" style="min-width: 230px;">
+                                            <li class="dropdown-header text-uppercase small fw-bold px-2 py-1">Select / Toggle Role</li>
+                                            <li><hr class="dropdown-divider my-1"></li>
+                                            
+                                            <?php foreach ($assignableRoles as $rItem): ?>
+                                                <li>
+                                                    <form method="POST" action="<?= $rItem['action'] ?>" class="m-0 p-0">
+                                                        <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+                                                        <input type="hidden" name="action" value="<?= $rItem['active'] ? 'revoke' : 'assign' ?>">
+                                                        
+                                                        <button type="submit" 
+                                                                class="dropdown-item dropdown-item-role rounded d-flex align-items-center justify-content-between my-1"
+                                                                onclick="return confirmRoleChange('<?= htmlspecialchars(addslashes($u['fullname'])) ?>', '<?= $rItem['label'] ?>', <?= $rItem['active'] ? 'true' : 'false' ?>)">
+                                                            
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <span class="role-dot <?= $rItem['dot'] ?>"></span>
+                                                                <span><?= $rItem['label'] ?></span>
+                                                            </div>
+                                                            
+                                                            <?php if ($rItem['active']): ?>
+                                                                <i class="bi bi-check-circle-fill text-success ms-2"></i>
+                                                            <?php else: ?>
+                                                                <i class="bi bi-circle text-muted ms-2 opacity-50"></i>
+                                                            <?php endif; ?>
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -101,5 +185,15 @@ require __DIR__ . '/../partials/header.php';
         </div>
     </div>
 </div>
+
+<script>
+function confirmRoleChange(fullname, roleLabel, isActive) {
+    if (isActive) {
+        return confirm('Are you sure you want to REVOKE the "' + roleLabel + '" role from ' + fullname + '?');
+    } else {
+        return confirm('Assign ' + fullname + ' as ' + roleLabel + '?');
+    }
+}
+</script>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

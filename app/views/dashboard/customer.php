@@ -1,410 +1,715 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Fitness Enthusiast Dashboard';
+$pageTitle = 'Member Dashboard';
 require __DIR__ . '/../partials/header.php';
 $displayName = trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''));
 if ($displayName === '') $displayName = $user['fullname'] ?? 'User';
 ?>
 
-<div class="mb-4">
-    <h1 class="h3 mb-1">Welcome, <?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?>!</h1>
-    <p class="text-muted mb-0">Fitness Enthusiast Dashboard</p>
-</div>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-<?php
-// Gym owner app status helpers
-$gymDocLabels = [
-    'cert_registration'  => 'Certificate of Registration',
-    'mayors_permit'      => "Mayor's Permit",
-    'business_name_cert' => 'Business Name Certificate',
-    'fire_safety_cert'   => 'Fire Safety Certificate',
-];
-$gymAppStatus = $legalDoc['status'] ?? null;
-$gymStatusColor = match($gymAppStatus) {
-    'verified'  => 'success',
-    'resubmit'  => 'danger',
-    'rejected'  => 'danger',
-    'pending'   => 'warning',
-    default     => 'secondary',
-};
-?>
-<div class="row g-4 mb-4">
-    <div class="col-md-6 col-lg-3">
-        <a href="index.php?r=gymowner/apply" class="text-decoration-none">
-        <div class="stat-card p-3 h-100" style="<?= $legalDoc ? 'border-left:3px solid var(--bs-'.$gymStatusColor.')!important;' : '' ?>">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon bg-primary bg-opacity-25 text-primary"><i class="bi bi-building"></i></div>
-                <div>
-                    <div class="text-muted small">Gym Owner App</div>
-                    <div class="fw-bold text-<?= $gymStatusColor ?>"><?= $legalDoc ? ucfirst($gymAppStatus) : 'Not Applied' ?></div>
-                    <?php if ($legalDoc): ?>
-                    <div class="text-muted" style="font-size:.68rem"><i class="bi bi-eye me-1"></i>View document status</div>
-                    <?php endif; ?>
-                </div>
-            </div>
+:root {
+  --gym-green: #16a34a;
+  --gym-green-light: #dcfce7;
+  --gym-green-dark: #15803d;
+  --bg-page: #f5f7f5;
+  --card-white: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border-light: #e5e7eb;
+  --shadow-sm: 0 2px 12px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+body {
+  background: var(--bg-page) !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+/* Welcome Header */
+.welcome-header {
+  margin-bottom: 2rem;
+}
+.welcome-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.welcome-subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.member-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--gym-green);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Modern Card Styling */
+.modern-card {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.modern-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Stat Cards */
+.stat-card-modern {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+  height: 100%;
+}
+.stat-card-modern:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+}
+.stat-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 1rem;
+}
+.stat-icon-circle.green {
+  background: var(--gym-green-light);
+  color: var(--gym-green);
+}
+.stat-icon-circle.blue {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+.stat-icon-circle.yellow {
+  background: #fef3c7;
+  color: #f59e0b;
+}
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+.stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.stat-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.stat-progress {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+.stat-progress-bar {
+  height: 100%;
+  background: var(--gym-green);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* Coaching Card */
+.coaching-card {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.coaching-header {
+  background: linear-gradient(135deg, var(--gym-green) 0%, var(--gym-green-dark) 100%);
+  padding: 1.25rem 1.5rem;
+  color: white;
+}
+.coaching-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+.coaching-body {
+  padding: 1.5rem;
+}
+.coach-avatar-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1rem;
+}
+.coach-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid var(--gym-green);
+  object-fit: cover;
+}
+.coach-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.coach-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+.plan-stats {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+}
+.plan-stat-item {
+  text-align: center;
+}
+.plan-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gym-green);
+}
+.plan-stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.coaching-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.btn-green {
+  background: var(--gym-green);
+  color: white;
+  border: none;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex: 1;
+}
+.btn-green:hover {
+  background: var(--gym-green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+.btn-green-outline {
+  background: transparent;
+  color: var(--gym-green);
+  border: 2px solid var(--gym-green);
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex: 1;
+}
+.btn-green-outline:hover {
+  background: var(--gym-green-light);
+  border-color: var(--gym-green-dark);
+  color: var(--gym-green-dark);
+}
+
+/* Quick Actions Card */
+.quick-actions-card {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  height: 100%;
+}
+.quick-actions-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1.25rem;
+}
+.quick-action-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  transition: all 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.quick-action-item:hover {
+  background: #f9fafb;
+  transform: translateX(4px);
+}
+.quick-action-item.green {
+  border-left-color: var(--gym-green);
+}
+.quick-action-item.blue {
+  border-left-color: #3b82f6;
+}
+.quick-action-item.yellow {
+  border-left-color: #f59e0b;
+}
+.quick-action-item.purple {
+  border-left-color: #8b5cf6;
+}
+.quick-action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.quick-action-icon.green {
+  background: var(--gym-green-light);
+  color: var(--gym-green);
+}
+.quick-action-icon.blue {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+.quick-action-icon.yellow {
+  background: #fef3c7;
+  color: #f59e0b;
+}
+.quick-action-icon.purple {
+  background: #e9d5ff;
+  color: #8b5cf6;
+}
+.quick-action-text {
+  flex: 1;
+}
+.quick-action-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.125rem;
+}
+.quick-action-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Recent Visits Card */
+.visits-card {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.5rem;
+}
+.visits-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.visit-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.visit-item:last-child {
+  border-bottom: none;
+}
+.visit-date {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.visit-badge {
+  background: var(--gym-green-light);
+  color: var(--gym-green);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.btn-view-history {
+  width: 100%;
+  margin-top: 1rem;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  padding: 0.625rem;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.btn-view-history:hover {
+  border-color: var(--gym-green);
+  color: var(--gym-green);
+  background: var(--gym-green-light);
+}
+
+/* Membership Status Card */
+.membership-card {
+  background: var(--card-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.membership-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.membership-status-badge {
+  background: var(--gym-green);
+  color: white;
+  font-size: 32px;
+  font-weight: 800;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  letter-spacing: 0.05em;
+}
+.membership-expiry {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+.btn-manage-membership {
+  width: 100%;
+  background: transparent;
+  border: 2px solid var(--gym-green);
+  color: var(--gym-green);
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.btn-manage-membership:hover {
+  background: var(--gym-green);
+  color: white;
+}
+
+/* Member Code Display */
+.member-code-display {
+  background: #f9fafb;
+  border: 2px dashed var(--border-light);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+.member-code-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+.member-code-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+}
+</style>
+
+<div class="container-fluid px-4 py-4">
+  <!-- Welcome Header -->
+  <div class="welcome-header d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="welcome-title">Welcome back, <?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?>!</h1>
+      <p class="welcome-subtitle">
+        Member since May 2026 • Code: 
+        <strong style="color: var(--gym-green);"><?= $gymMember ? htmlspecialchars($gymMember['membership_code']) : 'GYM-B137FBAB' ?></strong>
+      </p>
+    </div>
+    <span class="member-badge">
+      <i class="bi bi-check-circle-fill"></i>
+      Active
+    </span>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-4">
+      <div class="stat-card-modern">
+        <div class="stat-icon-circle green">
+          <i class="bi bi-activity"></i>
         </div>
+        <div class="stat-label">Total Workouts</div>
+        <div class="stat-value">0</div>
+        <div class="stat-subtitle">0 minutes total</div>
+        <div class="stat-progress">
+          <div class="stat-progress-bar" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card-modern">
+        <div class="stat-icon-circle blue">
+          <i class="bi bi-calendar-check"></i>
+        </div>
+        <div class="stat-label">Gym Visits</div>
+        <div class="stat-value">1</div>
+        <div class="stat-subtitle">This month • 1 day streak</div>
+        <div class="stat-progress">
+          <div class="stat-progress-bar" style="width: 10%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card-modern">
+        <div class="stat-icon-circle yellow">
+          <i class="bi bi-trophy"></i>
+        </div>
+        <div class="stat-label">Active Goals</div>
+        <div class="stat-value">0</div>
+        <div class="stat-subtitle">0 completed</div>
+        <div class="stat-progress">
+          <div class="stat-progress-bar" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="row g-4">
+    <!-- Left Column: Coaching Card -->
+    <div class="col-lg-5">
+      <div class="coaching-card">
+        <div class="coaching-header">
+          <h3><i class="bi bi-person-hearts me-2"></i>Personal Coaching & Plans</h3>
+        </div>
+        <div class="coaching-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="coach-avatar-wrapper">
+              <img src="https://ui-avatars.com/api/?name=Leonard+Alfanta&background=16a34a&color=fff&size=80" 
+                   alt="Coach" class="coach-avatar">
+            </div>
+            <div>
+              <div class="coach-name">leonard v. alfanta</div>
+              <div class="coach-title">Assigned Coach</div>
+            </div>
+          </div>
+
+          <div style="background: #f9fafb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              <i class="bi bi-clipboard-check me-1"></i>My Training Overview
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              <i class="bi bi-graph-up me-1"></i>Track Daily Progress
+            </div>
+          </div>
+
+          <div class="plan-stats">
+            <div class="plan-stat-item">
+              <div class="plan-stat-value">2000</div>
+              <div class="plan-stat-label">Target Calories</div>
+            </div>
+            <div class="plan-stat-item">
+              <div class="plan-stat-value">3</div>
+              <div class="plan-stat-label">Weekly Sessions</div>
+            </div>
+          </div>
+
+          <div class="coaching-buttons">
+            <button class="btn-green">
+              <i class="bi bi-dumbbell me-1"></i>View Workouts
+            </button>
+            <button class="btn-green-outline">
+              <i class="bi bi-egg-fried me-1"></i>View Diet
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle Column: Quick Actions -->
+    <div class="col-lg-4">
+      <div class="quick-actions-card">
+        <h3 class="quick-actions-title">
+          <i class="bi bi-lightning-charge me-2"></i>Quick Actions
+        </h3>
+
+        <a href="index.php?r=membership/apply" class="quick-action-item green">
+          <div class="quick-action-icon green">
+            <i class="bi bi-card-checklist"></i>
+          </div>
+          <div class="quick-action-text">
+            <div class="quick-action-title">Gym Membership</div>
+            <div class="quick-action-subtitle">Apply or manage membership</div>
+          </div>
+          <i class="bi bi-chevron-right" style="color: var(--text-muted);"></i>
         </a>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="stat-card p-3">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon bg-warning bg-opacity-25 text-warning"><i class="bi bi-person-badge"></i></div>
-                <div>
-                    <div class="text-muted small">Staff Application</div>
-                    <div class="fw-bold"><?= $staffApp ? ucfirst($staffApp['status']) . ' (' . ucfirst($staffApp['application_type']) . ')' : 'Not Applied' ?></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="stat-card p-3">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon bg-success bg-opacity-25 text-success"><i class="bi bi-card-checklist"></i></div>
-                <div>
-                    <div class="text-muted small">Membership</div>
-                    <div class="fw-bold"><?= $memberApp ? ucfirst($memberApp['status']) : 'Not Applied' ?></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="stat-card p-3">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon bg-info bg-opacity-25 text-info"><i class="bi bi-qr-code"></i></div>
-                <div>
-                    <div class="text-muted small">Member Code</div>
-                    <div class="fw-bold"><?= $gymMember ? htmlspecialchars($gymMember['membership_code']) : '—' ?></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Notifications / Feedback Section -->
-<?php
-$notifications = [];
+        <a href="index.php?r=membership/verifycode" class="quick-action-item blue">
+          <div class="quick-action-icon blue">
+            <i class="bi bi-qr-code"></i>
+          </div>
+          <div class="quick-action-text">
+            <div class="quick-action-title">Check In</div>
+            <div class="quick-action-subtitle">Verify code & log attendance</div>
+          </div>
+          <i class="bi bi-chevron-right" style="color: var(--text-muted);"></i>
+        </a>
 
-// ── Gym Owner Application Notifications ──────────────────────────────────────
-if ($legalDoc && $legalDoc['status'] === 'verified') {
-    $notifications[] = ['type' => 'success', 'icon' => 'bi-building-check',
-        'title' => 'Gym Owner Application — All Documents Approved!',
-        'msg'   => 'All your legal documents have been verified. The admin will finalize your gym owner account shortly.',
-        'link'  => 'index.php?r=gymowner/apply', 'linkText' => 'View Status'];
-}
-if ($legalDoc && $legalDoc['status'] === 'resubmit') {
-    // Build per-doc detail for feedback
-    $flaggedDocs = [];
-    foreach ($gymDocLabels as $key => $label) {
-        if (($legalDoc[$key.'_status'] ?? 'pending') === 'flagged') {
-            $comment = $legalDoc[$key.'_comment'] ?? '';
-            $flaggedDocs[] = '• ' . $label . ($comment !== '' ? ': ' . $comment : '');
-        }
-    }
-    $msg = !empty($flaggedDocs)
-        ? 'The following document(s) were flagged — ' . implode(' | ', $flaggedDocs)
-        : ($legalDoc['admin_feedback'] ?? 'Please resubmit your documents.');
-    $notifications[] = ['type' => 'warning', 'icon' => 'bi-exclamation-triangle',
-        'title' => 'Gym Owner Application — Action Required: Documents Flagged',
-        'msg'   => $msg,
-        'link'  => 'index.php?r=gymowner/apply', 'linkText' => 'Resubmit Now'];
-}
-if ($legalDoc && $legalDoc['status'] === 'rejected') {
-    $notifications[] = ['type' => 'danger', 'icon' => 'bi-building-x',
-        'title' => 'Gym Owner Application — Rejected',
-        'msg'   => $legalDoc['admin_feedback'] ?? 'Your application has been rejected.',
-        'link'  => 'index.php?r=gymowner/apply', 'linkText' => 'Re-apply'];
-}
-if ($legalDoc && $legalDoc['status'] === 'pending') {
-    // Check if any individual docs are already approved or flagged
-    $anyIndivAction = false;
-    foreach ($gymDocLabels as $key => $label) {
-        $s = $legalDoc[$key.'_status'] ?? 'pending';
-        if ($s === 'approved' || $s === 'flagged') { $anyIndivAction = true; break; }
-    }
-    if ($anyIndivAction) {
-        $notifications[] = ['type' => 'info', 'icon' => 'bi-building',
-            'title' => 'Gym Owner Application — Documents Being Reviewed',
-            'msg'   => 'The admin is reviewing your documents. Some have been marked already. Click to see the full status.',
-            'link'  => 'index.php?r=gymowner/apply', 'linkText' => 'View Document Status'];
-    }
-}
+        <a href="index.php?r=gymowner/apply" class="quick-action-item yellow">
+          <div class="quick-action-icon yellow">
+            <i class="bi bi-building"></i>
+          </div>
+          <div class="quick-action-text">
+            <div class="quick-action-title">Become Gym Owner</div>
+            <div class="quick-action-subtitle">Submit legal documents</div>
+          </div>
+          <i class="bi bi-chevron-right" style="color: var(--text-muted);"></i>
+        </a>
 
-// ── Staff Application Notifications ──────────────────────────────────────────
-if ($staffApp && $staffApp['status'] === 'approved') {
-    $notifications[] = ['type' => 'success', 'icon' => 'bi-person-check',
-        'title' => 'Staff Application Approved — You are Hired!',
-        'msg'   => 'Congratulations! You have been approved. Check your dashboard for your new role.',
-        'link'  => 'index.php?r=home/index', 'linkText' => 'Go to Dashboard'];
-}
-if ($staffApp && $staffApp['status'] === 'resubmit') {
-    // Build per-doc details for the message
-    $flaggedStaffDocs = [];
-    foreach (['medical_certificate' => 'Medical Certificate', 'resume' => 'Resume / CV'] as $sKey => $sLabel) {
-        if (($staffApp[$sKey.'_status'] ?? 'pending') === 'flagged') {
-            $sc = $staffApp[$sKey.'_comment'] ?? '';
-            $flaggedStaffDocs[] = '• ' . $sLabel . ($sc !== '' ? ': ' . $sc : '');
-        }
-    }
-    $staffMsg = !empty($flaggedStaffDocs)
-        ? 'Flagged documents — ' . implode(' | ', $flaggedStaffDocs)
-        : ($staffApp['feedback'] ?? 'Please resubmit flagged documents.');
-    $notifications[] = ['type' => 'warning', 'icon' => 'bi-person-badge',
-        'title' => 'Staff Application — Action Required: Documents Flagged',
-        'msg'   => $staffMsg,
-        'link'  => 'index.php?r=staff/apply&gym_id=' . ($staffApp['gym_owner_id'] ?? 0), 'linkText' => 'Resubmit Now'];
-}
-if ($staffApp && $staffApp['status'] === 'rejected') {
-    $notifications[] = ['type' => 'danger', 'icon' => 'bi-person-badge',
-        'title' => 'Staff Application — Rejected',
-        'msg'   => $staffApp['feedback'] ?? 'Your staff application has been rejected.',
-        'link'  => 'index.php?r=staff/gyms', 'linkText' => 'Re-apply'];
-}
-if ($staffApp && $staffApp['status'] === 'pending') {
-    // Check if any individual docs have been acted on
-    $anyStaffAction = false;
-    foreach (['medical_certificate_status', 'resume_status'] as $sf) {
-        $sv = $staffApp[$sf] ?? 'pending';
-        if ($sv === 'approved' || $sv === 'flagged') { $anyStaffAction = true; break; }
-    }
-    if ($anyStaffAction) {
-        $notifications[] = ['type' => 'info', 'icon' => 'bi-person-badge',
-            'title' => 'Staff Application — Documents Being Reviewed',
-            'msg'   => 'The gym owner is reviewing your documents. Some have already been marked. Click to see the full status.',
-            'link'  => 'index.php?r=staff/apply&gym_id=' . ($staffApp['gym_owner_id'] ?? 0), 'linkText' => 'View Document Status'];
-    }
-}
-
-// ── Membership Notifications ──────────────────────────────────────────────────
-if ($memberApp && $memberApp['status'] === 'resubmit') {
-    $notifications[] = ['type' => 'warning', 'icon' => 'bi-card-checklist',
-        'title' => 'Membership Application — Resubmission Required',
-        'msg'   => $memberApp['admin_feedback'] ?? 'Please resubmit your membership application.',
-        'link'  => 'index.php?r=membership/apply', 'linkText' => 'Resubmit'];
-}
-if ($memberApp && $memberApp['status'] === 'rejected') {
-    $notifications[] = ['type' => 'danger', 'icon' => 'bi-card-checklist',
-        'title' => 'Membership Application — Rejected',
-        'msg'   => $memberApp['admin_feedback'] ?? 'Your membership application has been rejected.',
-        'link'  => 'index.php?r=membership/apply', 'linkText' => 'Re-apply'];
-}
-if ($memberApp && $memberApp['status'] === 'verified') {
-    $notifications[] = ['type' => 'info', 'icon' => 'bi-card-checklist',
-        'title' => 'Membership — Verified, Awaiting Payment',
-        'msg'   => 'Your application has been verified. Please complete your payment. Amount: ₱' . number_format((float)($memberApp['payment_amount'] ?? 0), 2),
-        'link'  => 'index.php?r=membership/apply', 'linkText' => 'View Details'];
-}
-if ($memberApp && $memberApp['status'] === 'approved' && !empty($memberApp['admin_feedback'])) {
-    $notifications[] = ['type' => 'success', 'icon' => 'bi-check-circle',
-        'title' => 'Membership Approved!',
-        'msg'   => $memberApp['admin_feedback'],
-        'link'  => 'index.php?r=membership/verifycode', 'linkText' => 'Check In'];
-}
-if ($memberApp && !empty($memberApp['preferred_trainer_id'])) {
-    $notifications[] = ['type' => 'info', 'icon' => 'bi-person-check',
-        'title' => 'Trainer Assigned to Your Membership',
-        'msg'   => 'A fitness trainer has been assigned to you. Check your membership details for more info.',
-        'link'  => 'index.php?r=membership/apply', 'linkText' => 'View'];
-}
-?>
-
-<?php if (!empty($notifications)): ?>
-<div class="mb-4">
-    <h2 class="h6 mb-3"><i class="bi bi-bell me-1"></i>Notifications</h2>
-    <?php foreach ($notifications as $n): ?>
-    <div class="alert alert-<?= $n['type'] ?> d-flex align-items-start gap-2 mb-2">
-        <i class="bi <?= $n['icon'] ?> mt-1"></i>
-        <div class="flex-grow-1">
-            <strong><?= $n['title'] ?></strong><br>
-            <span class="small"><?= htmlspecialchars($n['msg']) ?></span>
-        </div>
-        <a href="<?= $n['link'] ?>" class="btn btn-sm btn-outline-<?= $n['type'] ?> text-nowrap"><?= $n['linkText'] ?></a>
+        <a href="index.php?r=staff/gyms" class="quick-action-item purple">
+          <div class="quick-action-icon purple">
+            <i class="bi bi-person-badge"></i>
+          </div>
+          <div class="quick-action-text">
+            <div class="quick-action-title">Apply as Staff</div>
+            <div class="quick-action-subtitle">Trainer or maintenance officer</div>
+          </div>
+          <i class="bi bi-chevron-right" style="color: var(--text-muted);"></i>
+        </a>
+      </div>
     </div>
-    <?php endforeach; ?>
-</div>
-<?php endif; ?>
 
-<?php
-// ─── Gym Owner Application Document Status Panel ─────────────────────────────
-// Show whenever there's an active application with per-doc data available
-if ($legalDoc && in_array($legalDoc['status'], ['pending', 'resubmit', 'verified', 'rejected'], true)):
-    $docStatuses = [];
-    foreach ($gymDocLabels as $key => $label) {
-        $s       = $legalDoc[$key.'_status'] ?? 'pending';
-        $comment = $legalDoc[$key.'_comment'] ?? '';
-        $docStatuses[] = compact('key', 'label', 's', 'comment');
-    }
-?>
-<div class="card mb-4">
-    <div class="card-header px-3 py-2 d-flex justify-content-between align-items-center">
-        <h2 class="h6 mb-0"><i class="bi bi-building me-2 text-primary"></i>Gym Owner Application — Document Status</h2>
-        <span class="badge bg-<?= $gymStatusColor ?>"><?= ucfirst($gymAppStatus) ?></span>
-    </div>
-    <div class="card-body">
-        <?php if (!empty($legalDoc['admin_feedback']) && $legalDoc['status'] !== 'pending'): ?>
-        <div class="alert alert-<?= $gymStatusColor === 'warning' ? 'warning' : ($gymStatusColor === 'success' ? 'success' : 'danger') ?> py-2 mb-3 small">
-            <i class="bi bi-chat-left-text me-1"></i><strong>Admin Feedback:</strong> <?= htmlspecialchars($legalDoc['admin_feedback']) ?>
-        </div>
-        <?php endif; ?>
-        <div class="row g-2">
-        <?php foreach ($docStatuses as $doc):
-            $iconClass  = match($doc['s']) { 'approved' => 'bi-check-circle-fill text-success', 'flagged' => 'bi-x-circle-fill text-danger', default => 'bi-hourglass-split text-warning' };
-            $badgeClass = match($doc['s']) { 'approved' => 'bg-success', 'flagged' => 'bg-danger', default => 'bg-warning text-dark' };
-            $borderStyle = match($doc['s']) { 'approved' => 'border-success', 'flagged' => 'border-danger', default => 'border-warning' };
-        ?>
-        <div class="col-md-6">
-            <div class="border rounded p-2 d-flex align-items-start gap-2 <?= $borderStyle ?>" style="border-color:currentColor!important">
-                <i class="bi <?= $iconClass ?> mt-1 flex-shrink-0" style="font-size:1.1rem"></i>
-                <div class="flex-grow-1 min-width-0">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-semibold small"><?= htmlspecialchars($doc['label']) ?></span>
-                        <span class="badge <?= $badgeClass ?> ms-1" style="font-size:.65rem;white-space:nowrap"><?= ucfirst($doc['s']) ?></span>
-                    </div>
-                    <?php if ($doc['comment'] !== ''): ?>
-                    <div class="text-danger small mt-1"><i class="bi bi-chat-quote me-1"></i><?= htmlspecialchars($doc['comment']) ?></div>
-                    <?php elseif ($doc['s'] === 'flagged'): ?>
-                    <div class="text-danger small mt-1">Flagged — please resubmit this document.</div>
-                    <?php elseif ($doc['s'] === 'approved'): ?>
-                    <div class="text-success small mt-1">Accepted by admin ✓</div>
-                    <?php else: ?>
-                    <div class="text-muted small mt-1">Awaiting review...</div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-        </div>
-        <div class="mt-3">
-            <a href="index.php?r=gymowner/apply" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-right me-1"></i><?= $legalDoc['status'] === 'resubmit' ? 'Resubmit Flagged Documents' : 'View Full Application' ?>
-            </a>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<?php
-// ─── Staff Application Document Status Panel ─────────────────────────────────
-if ($staffApp && in_array($staffApp['status'], ['pending', 'resubmit', 'approved', 'rejected'], true)):
-    $staffDocLabels = [
-        'medical_certificate' => 'Medical Certificate',
-        'resume'              => 'Resume / CV',
-    ];
-    $staffStatusColor = match($staffApp['status']) {
-        'approved'  => 'success',
-        'resubmit'  => 'danger',
-        'rejected'  => 'danger',
-        'pending'   => 'warning',
-        default     => 'secondary',
-    };
-    $staffDocStatuses = [];
-    foreach ($staffDocLabels as $key => $label) {
-        $s       = $staffApp[$key.'_status'] ?? 'pending';
-        $comment = $staffApp[$key.'_comment'] ?? '';
-        $staffDocStatuses[] = compact('key', 'label', 's', 'comment');
-    }
-?>
-<div class="card mb-4">
-    <div class="card-header px-3 py-2 d-flex justify-content-between align-items-center">
-        <h2 class="h6 mb-0"><i class="bi bi-person-badge me-2 text-warning"></i>Staff Application &mdash; Document Status</h2>
-        <span class="badge bg-<?= $staffStatusColor ?>"><?= ucfirst($staffApp['status']) ?></span>
-    </div>
-    <div class="card-body">
-        <?php if (!empty($staffApp['feedback']) && $staffApp['status'] !== 'pending'): ?>
-        <div class="alert alert-<?= $staffStatusColor === 'success' ? 'success' : 'warning' ?> py-2 mb-3 small">
-            <i class="bi bi-chat-left-text me-1"></i><strong>Gym Owner Feedback:</strong> <?= htmlspecialchars($staffApp['feedback']) ?>
-        </div>
-        <?php endif; ?>
-
+    <!-- Right Column: Active Campaigns & Events -->
+    <div class="col-lg-3">
+      <!-- Active Campaigns -->
+      <div class="visits-card">
+        <h3 class="visits-title">
+          <i class="bi bi-megaphone-fill"></i>
+          Active Campaigns
+        </h3>
+        
         <?php
-        // Summary counters
-        $sCntApproved = $sCntFlagged = $sCntPending = 0;
-        foreach ($staffDocStatuses as $sd) {
-            if ($sd['s'] === 'approved') $sCntApproved++;
-            elseif ($sd['s'] === 'flagged') $sCntFlagged++;
-            else $sCntPending++;
+        // Fetch active campaigns for this member
+        try {
+            $pdo = \App\Core\Database::pdo();
+            $stmt = $pdo->prepare(
+                "SELECT id, title, service_description, start_date, end_date, 
+                        instructor_id, image_path, status
+                 FROM ad_campaigns 
+                 WHERE status = 'published'
+                 AND CURDATE() BETWEEN start_date AND end_date
+                 ORDER BY created_at DESC
+                 LIMIT 3"
+            );
+            $stmt->execute();
+            $activeCampaigns = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            $activeCampaigns = [];
         }
         ?>
-        <div class="d-flex gap-2 mb-3">
-            <span class="badge bg-success"><?= $sCntApproved ?> Approved</span>
-            <span class="badge bg-danger"><?= $sCntFlagged ?> Flagged</span>
-            <span class="badge bg-warning text-dark"><?= $sCntPending ?> Pending</span>
+        
+        <?php if (empty($activeCampaigns)): ?>
+        <div class="text-center py-4">
+          <i class="bi bi-calendar-event" style="font-size: 2.5rem; color: var(--text-muted);"></i>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 0.5rem; margin-bottom: 0;">
+            No active campaigns right now
+          </p>
         </div>
+        <?php else: ?>
+          <?php foreach ($activeCampaigns as $campaign): ?>
+          <div class="visit-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;">
+            <?php if (!empty($campaign['image_path'])): ?>
+            <img src="<?= htmlspecialchars($campaign['image_path']) ?>" 
+                 alt="Campaign" 
+                 style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 0.5rem;">
+            <?php endif; ?>
+            <div style="width: 100%;">
+              <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
+                <?= htmlspecialchars($campaign['title']) ?>
+              </div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                <?= htmlspecialchars(substr($campaign['service_description'], 0, 60)) . '...' ?>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; color: var(--text-muted);">
+                  <i class="bi bi-calendar-check"></i>
+                  Valid until <?= date('M d', strtotime($campaign['end_date'])) ?>
+                </span>
+                <a href="index.php?r=member/campaigns" 
+                   class="visit-badge" 
+                   style="text-decoration: none; cursor: pointer;">
+                  View
+                </a>
+              </div>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+        
+        <a href="index.php?r=member/campaigns" class="btn-view-history">
+          <i class="bi bi-grid-3x3-gap me-1"></i>View All Events
+        </a>
+      </div>
 
-        <div class="row g-2">
-        <?php foreach ($staffDocStatuses as $sd):
-            $sIconClass  = match($sd['s']) { 'approved' => 'bi-check-circle-fill text-success', 'flagged' => 'bi-x-circle-fill text-danger', default => 'bi-hourglass-split text-warning' };
-            $sBadgeClass = match($sd['s']) { 'approved' => 'bg-success', 'flagged' => 'bg-danger', default => 'bg-warning text-dark' };
-            $sBorder     = match($sd['s']) { 'approved' => 'border-success', 'flagged' => 'border-danger', default => 'border-warning' };
-        ?>
-        <div class="col-md-6">
-            <div class="border rounded p-2 d-flex align-items-start gap-2 <?= $sBorder ?>" style="border-color:currentColor!important">
-                <i class="bi <?= $sIconClass ?> mt-1 flex-shrink-0" style="font-size:1.1rem"></i>
-                <div class="flex-grow-1">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-semibold small"><?= htmlspecialchars($sd['label']) ?></span>
-                        <span class="badge <?= $sBadgeClass ?> ms-1" style="font-size:.65rem;white-space:nowrap"><?= ucfirst($sd['s']) ?></span>
-                    </div>
-                    <?php if ($sd['comment'] !== ''): ?>
-                    <div class="text-danger small mt-1"><i class="bi bi-chat-quote me-1"></i><?= htmlspecialchars($sd['comment']) ?></div>
-                    <?php elseif ($sd['s'] === 'flagged'): ?>
-                    <div class="text-danger small mt-1">Flagged &mdash; please resubmit this document.</div>
-                    <?php elseif ($sd['s'] === 'approved'): ?>
-                    <div class="text-success small mt-1">Accepted by gym owner &#10003;</div>
-                    <?php else: ?>
-                    <div class="text-muted small mt-1">Awaiting gym owner review...</div>
-                    <?php endif; ?>
-                </div>
-            </div>
+      <!-- Membership Status -->
+      <div class="membership-card">
+        <h3 class="membership-title">
+          <i class="bi bi-shield-check"></i>
+          Membership Status
+        </h3>
+        <div class="membership-status-badge">
+          ACTIVE
         </div>
-        <?php endforeach; ?>
+        <div class="membership-expiry">
+          Expires on <strong>Jun 27, 2026</strong>
         </div>
-
-        <div class="mt-3">
-            <a href="index.php?r=staff/apply&gym_id=<?= (int)($staffApp['gym_owner_id'] ?? 0) ?>" class="btn btn-sm btn-outline-warning">
-                <i class="bi bi-arrow-right me-1"></i><?= $staffApp['status'] === 'resubmit' ? 'Resubmit Flagged Documents' : 'View Application Details' ?>
-            </a>
-        </div>
+        <button class="btn-manage-membership">
+          <i class="bi bi-gear me-1"></i>Manage Membership
+        </button>
+      </div>
     </div>
-</div>
-<?php endif; ?>
-
-<div class="row g-4">
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-building me-2 text-primary"></i>Become a Gym Owner</h2></div>
-            <div class="card-body">
-                <p class="small text-muted">Submit legal documents to apply as a gym owner. Required: Certificate of Registration, Mayor's Permit, Business Name Certificate, Fire Safety Certificate.</p>
-                <a href="index.php?r=gymowner/apply" class="btn btn-primary btn-sm"><i class="bi bi-arrow-right"></i> Apply Now</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-person-badge me-2 text-warning"></i>Apply as Staff</h2></div>
-            <div class="card-body">
-                <p class="small text-muted">Apply as a Maintenance Officer or Fitness Trainer at available gyms. Submit your medical certificate and resume.</p>
-                <a href="index.php?r=staff/gyms" class="btn btn-warning btn-sm text-dark"><i class="bi bi-arrow-right"></i> View Available Gyms</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-card-checklist me-2 text-success"></i>Gym Membership</h2></div>
-            <div class="card-body">
-                <p class="small text-muted">Apply for gym membership and get assigned a fitness trainer.</p>
-                <a href="index.php?r=membership/apply" class="btn btn-success btn-sm"><i class="bi bi-arrow-right"></i> Apply</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header px-3 py-2"><h2 class="h6 mb-0"><i class="bi bi-qr-code me-2 text-info"></i>Verify Membership Code</h2></div>
-            <div class="card-body">
-                <p class="small text-muted">Enter your membership code to verify your identity and log attendance.</p>
-                <a href="index.php?r=membership/verifycode" class="btn btn-info btn-sm"><i class="bi bi-arrow-right"></i> Verify</a>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

@@ -13,12 +13,12 @@ final class MembershipApplication extends Model
 
     public static function getPriceForType(string $type): float
     {
-        return match ($type) {
-            'student_monthly'  => self::PRICE_STUDENT_MONTHLY,
-            'regular_monthly'  => self::PRICE_REGULAR_MONTHLY,
-            'with_trainer'     => self::PRICE_WITH_TRAINER,
-            default            => 0.0,
-        };
+        switch ($type) {
+            case 'student_monthly': return self::PRICE_STUDENT_MONTHLY;
+            case 'regular_monthly': return self::PRICE_REGULAR_MONTHLY;
+            case 'with_trainer':    return self::PRICE_WITH_TRAINER;
+            default:                return 0.0;
+        }
     }
 
     /**
@@ -98,6 +98,47 @@ final class MembershipApplication extends Model
             ':tid' => $trainerId,
             ':pt'  => $paymentType,
             ':sid' => $serviceId,
+            ':pa'  => $paymentAmount,
+            ':pm'  => $paymentMode,
+        ]);
+        return (int)$this->db()->lastInsertId();
+    }
+
+    /**
+     * Create membership application with both membership plan and training package
+     */
+    public function createWithPlanAndPackage(
+        int $userId,
+        string $fn,
+        string $ln,
+        string $mi,
+        string $phone,
+        ?int $trainerId,
+        string $paymentType,
+        int $membershipPlanId,
+        ?int $trainingPackageId,
+        float $paymentAmount,
+        string $paymentMode,
+        int $gymOwnerId
+    ): int {
+        $stmt = $this->db()->prepare(
+            'INSERT INTO membership_applications
+             (user_id, gym_owner_id, first_name, last_name, middle_initial, phone_number,
+              preferred_trainer_id, payment_type, membership_plan_id, training_package_id, 
+              payment_amount, payment_mode, payment_status, status)
+             VALUES (:uid, :goid, :fn, :ln, :mi, :ph, :tid, :pt, :mpid, :tpid, :pa, :pm, "pending", "pending")'
+        );
+        $stmt->execute([
+            ':uid' => $userId,
+            ':goid' => $gymOwnerId,
+            ':fn'  => $fn,
+            ':ln'  => $ln,
+            ':mi'  => $mi ?: null,
+            ':ph'  => $phone,
+            ':tid' => $trainerId,
+            ':pt'  => $paymentType,
+            ':mpid' => $membershipPlanId,
+            ':tpid' => $trainingPackageId,
             ':pa'  => $paymentAmount,
             ':pm'  => $paymentMode,
         ]);
@@ -202,6 +243,46 @@ final class MembershipApplication extends Model
             ':tid' => $trainerId,
             ':pt'  => $paymentType,
             ':sid' => $serviceId,
+            ':pa'  => $paymentAmount,
+            ':pm'  => $paymentMode,
+            ':id'  => $id,
+        ]);
+    }
+
+    /**
+     * Resubmit membership application with both membership plan and training package
+     */
+    public function resubmitWithPlanAndPackage(
+        int $id,
+        string $fn,
+        string $ln,
+        string $mi,
+        string $phone,
+        ?int $trainerId,
+        string $paymentType,
+        int $membershipPlanId,
+        ?int $trainingPackageId,
+        float $paymentAmount,
+        string $paymentMode,
+        int $gymOwnerId
+    ): void {
+        $stmt = $this->db()->prepare(
+            'UPDATE membership_applications SET
+             gym_owner_id=:goid, first_name=:fn, last_name=:ln, middle_initial=:mi, phone_number=:ph,
+             preferred_trainer_id=:tid, payment_type=:pt, membership_plan_id=:mpid, training_package_id=:tpid,
+             payment_amount=:pa, payment_mode=:pm, payment_status="pending", status="pending", admin_feedback=NULL
+             WHERE id=:id'
+        );
+        $stmt->execute([
+            ':goid' => $gymOwnerId,
+            ':fn'  => $fn,
+            ':ln'  => $ln,
+            ':mi'  => $mi ?: null,
+            ':ph'  => $phone,
+            ':tid' => $trainerId,
+            ':pt'  => $paymentType,
+            ':mpid' => $membershipPlanId,
+            ':tpid' => $trainingPackageId,
             ':pa'  => $paymentAmount,
             ':pm'  => $paymentMode,
             ':id'  => $id,

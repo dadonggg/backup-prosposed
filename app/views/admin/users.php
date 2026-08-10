@@ -50,14 +50,13 @@ require __DIR__ . '/../partials/header.php';
                     <?php else: ?>
                         <?php foreach ($allUsers as $u): ?>
                         <?php
-                            $roleLabel = match($u['role']) {
+                            $roleLabel = [
                                 'administrative_officer' => ['Administrative Officer', 'bg-primary'],
                                 'gym_owner'              => ['Gym Owner',              'bg-info text-dark'],
                                 'fitness_enthusiast'     => ['Fitness Enthusiast',     'bg-secondary'],
                                 'fitness_trainer'        => ['Fitness Trainer',        'bg-success'],
                                 'maintenance_officer'    => ['Maintenance Officer',    'bg-warning text-dark'],
-                                default                  => [ucfirst(str_replace('_', ' ', $u['role'])), 'bg-secondary'],
-                            };
+                            ][$u['role']] ?? [ucfirst(str_replace('_', ' ', $u['role'])), 'bg-secondary'];
                             $isOfficer = ($u['role'] === 'administrative_officer');
                         ?>
                         <tr>

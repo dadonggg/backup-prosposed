@@ -27,7 +27,7 @@ require __DIR__ . '/../partials/header.php';
                             <td><?= htmlspecialchars($a['first_name'] . ' ' . ($a['middle_initial'] ? $a['middle_initial'] . '. ' : '') . $a['last_name']) ?></td>
                             <td class="small"><?= htmlspecialchars($a['phone_number']) ?></td>
                             <td>
-                                <?php $badge = match($a['status']) { 'pending'=>'bg-warning text-dark','verified'=>'bg-info','approved'=>'bg-success','rejected'=>'bg-danger','resubmit'=>'bg-secondary',default=>'bg-secondary' }; ?>
+                                <?php $badge = [ 'pending'=>'bg-warning text-dark','verified'=>'bg-info','approved'=>'bg-success','rejected'=>'bg-danger','resubmit'=>'bg-secondary' ][$a['status']] ?? 'bg-secondary'; ?>
                                 <span class="badge <?= $badge ?>"><?= ucfirst($a['status']) ?></span>
                             </td>
                             <td class="small"><?= htmlspecialchars($a['created_at']) ?></td>

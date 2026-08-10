@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Controller;
+use App\Core\Database;
 use App\Models\User;
 use App\Models\MembershipApplication;
 use App\Models\GymMember;
@@ -10,6 +11,7 @@ use App\Models\Employee;
 use App\Models\AttendanceLog;
 use App\Models\FinancialRecord;
 use App\Models\Notification;
+use App\Models\FitnessServiceRequest;
 
 final class AdmofficerController extends Controller
 {
@@ -33,7 +35,23 @@ final class AdmofficerController extends Controller
         $user = $this->requireOfficer();
         $apps = (new MembershipApplication())->findAll();
         $trainers = (new Employee())->findAvailableTrainers();
-        $this->view('admofficer/memberships', ['user' => $user, 'apps' => $apps, 'trainers' => $trainers]);
+        
+        $builderCampaign = null;
+        try {
+            $campaignModel = new \App\Models\AdCampaign();
+            if ($campaignModel->tableExists()) {
+                $builderCampaign = $campaignModel->findActiveCampaignBuilder();
+            }
+        } catch (\Throwable $e) {
+            $builderCampaign = null;
+        }
+        
+        $this->view('admofficer/memberships', [
+            'user' => $user, 
+            'apps' => $apps, 
+            'trainers' => $trainers,
+            'builderCampaign' => $builderCampaign
+        ]);
     }
 
     /** Review a single membership application */
@@ -161,5 +179,213 @@ final class AdmofficerController extends Controller
         $user = $this->requireOfficer();
         $employees = (new Employee())->findAll();
         $this->view('admofficer/employees', ['user' => $user, 'employees' => $employees]);
+    }
+
+    /**
+     * Fitness Training — Read-Only Oversight View for Admin Officer.
+     * Admin no longer approves or assigns coaches.
+     * Direct enthusiast-to-trainer booking is now handled by FitnessController/TrainerController.
+     */
+    public function fitnessRequestsAction(): void
+    {
+        $user = $this->requireOfficer();
+        $requestModel = new FitnessServiceRequest();
+
+        // Read-only stats only
+        $allRequests = $requestModel->findAll();
+        $stats = $requestModel->getStats();
+
+        $this->view('admofficer/fitness_requests', [
+            'user'        => $user,
+            'allRequests' => $allRequests,
+            'stats'       => $stats,
+            'readonly'    => true,
+        ]);
+    }
+
+    /** Assign Trainer to Fitness Request (AJAX) — Feature 6 Fix */
+    public function assignTrainerAction(): void
+    {
+        // Always return JSON
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'errors' => ['Invalid request method']]);
+            return;
+        }
+
+        $user = $this->requireOfficer();
+
+        // NULL checks on IDs
+        $requestId = !empty($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
+        $trainerId  = !empty($_POST['trainer_id'])  ? (int)$_POST['trainer_id']  : 0;
+
+        if ($requestId === 0 || $trainerId === 0) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'errors' => ['Missing request_id or trainer_id']]);
+            return;
+        }
+
+        $requestModel = new FitnessServiceRequest();
+        $request      = $requestModel->findById($requestId);
+
+        if (!$request) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'errors' => ['Fitness request not found']]);
+            return;
+        }
+
+        // Verify trainer exists and is a trainer position
+        $employeeModel = new Employee();
+        $trainer       = $employeeModel->findById($trainerId);
+
+        if (!$trainer || strtolower($trainer['position'] ?? '') !== 'trainer') {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'errors' => ['Selected employee is not a valid trainer']]);
+            return;
+        }
+
+        // Upsert guard: if already assigned to the SAME trainer, just return success
+        if ((int)($request['assigned_trainer_id'] ?? 0) === $trainerId
+            && $request['status'] === 'assigned') {
+            $trainerName = $trainer['fullname'] ?? 'Trainer';
+            echo json_encode([
+                'success'      => true,
+                'message'      => 'Trainer was already assigned.',
+                'trainer_name' => $trainerName
+            ]);
+            return;
+        }
+
+        // Assign trainer on the fitness request (sets status = 'assigned')
+        if ($requestModel->assignTrainer($requestId, $trainerId, (int)$user['id'])) {
+
+            // Mark trainer as unavailable
+            $employeeModel->setAvailability($trainerId, false);
+
+            // Record in trainer_assignments table (upsert via INSERT IGNORE + UPDATE)
+            $memberId = (int)$request['member_id'];
+            try {
+                $this->db()->prepare(
+                    'INSERT INTO trainer_assignments (client_id, trainer_id, assigned_by, status)
+                     VALUES (:cid, :tid, :aby, "active")
+                     ON DUPLICATE KEY UPDATE trainer_id=:tid2, assigned_by=:aby2,
+                                             assigned_at=NOW(), status="active"'
+                )->execute([
+                    ':cid'  => $memberId,
+                    ':tid'  => $trainerId,
+                    ':aby'  => (int)$user['id'],
+                    ':tid2' => $trainerId,
+                    ':aby2' => (int)$user['id'],
+                ]);
+            } catch (\PDOException $e) {
+                // trainer_assignments table may not exist yet — non-fatal
+            }
+
+            // Notify member
+            $memberModel = new GymMember();
+            $member      = $memberModel->findById($memberId);
+            $trainerName = $trainer['fullname'] ?? 'a fitness trainer';
+
+            if ($member) {
+                $this->notify(
+                    (int)$member['user_id'],
+                    'Trainer Assigned to Your Fitness Request',
+                    "$trainerName has been assigned to your fitness training request. You can now complete your client profile.",
+                    'success',
+                    'fitness/status'
+                );
+            }
+
+            echo json_encode([
+                'success'      => true,
+                'message'      => 'Trainer assigned successfully!',
+                'trainer_name' => $trainerName
+            ]);
+        } else {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'errors' => ['Database update failed. Please try again.']]);
+        }
+    }
+
+    /** Helper: get PDO instance for direct queries in this controller */
+    private function db(): \PDO
+    {
+        return Database::pdo();
+    }
+
+    /** AJAX — Administrative Officer confirms a campaign registration payment */
+    public function confirmPaymentAction(): void
+    {
+        header('Content-Type: application/json');
+        $user = $this->requireOfficer();
+
+        $campaignId = (int)($_POST['campaign_id'] ?? 0);
+        $regId      = (int)($_POST['registration_id'] ?? 0);
+
+        if ($campaignId <= 0 || $regId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Invalid campaign or registration ID']);
+            exit;
+        }
+
+        try {
+            $pdo = \App\Core\Database::pdo();
+            // Fetch the campaign directly by ID
+            $stmt = $pdo->prepare('SELECT * FROM ad_campaigns WHERE id = :id');
+            $stmt->execute([':id' => $campaignId]);
+            $campaign = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$campaign) {
+                echo json_encode(['success' => false, 'error' => 'Campaign not found']);
+                exit;
+            }
+
+            $extra = [];
+            if ($campaign['extra_json']) {
+                $extra = json_decode($campaign['extra_json'], true) ?: [];
+            }
+
+            if (!isset($extra['registrations']) || empty($extra['registrations'])) {
+                echo json_encode(['success' => false, 'error' => 'No registrations found for this campaign']);
+                exit;
+            }
+
+            $found = false;
+            $gymOwnerId = (int)($campaign['gym_id'] ?? 0);
+            foreach ($extra['registrations'] as &$reg) {
+                if ((int)$reg['id'] === $regId) {
+                    $reg['status'] = 'Paid';
+                    $found = true;
+                    
+                    // Also record revenue in financial records!
+                    if ($gymOwnerId > 0) {
+                        $finModel = new FinancialRecord();
+                        $finModel->addRevenue(
+                            $gymOwnerId,
+                            'Campaign: ' . ($campaign['title'] ?? 'N/A') . ' (' . ($reg['pack'] ?? 'N/A') . ')',
+                            (float)($reg['price'] ?? 0),
+                            'Member: ' . ($reg['name'] ?? 'N/A'),
+                            'Others'
+                        );
+                    }
+                    break;
+                }
+            }
+
+            if (!$found) {
+                echo json_encode(['success' => false, 'error' => 'Registration not found']);
+                exit;
+            }
+
+            $updatedExtraJson = json_encode($extra);
+            $saveStmt = $pdo->prepare('UPDATE ad_campaigns SET extra_json = :extra WHERE id = :id');
+            $saveStmt->execute([':extra' => $updatedExtraJson, ':id' => $campaignId]);
+
+            echo json_encode(['success' => true]);
+        } catch (\PDOException $e) {
+            echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+        }
+        exit;
     }
 }

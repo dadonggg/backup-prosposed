@@ -14,6 +14,7 @@ use App\Models\Notification;
 use App\Models\MembershipPlan;
 use App\Models\GymService;
 use App\Models\PayMongoConfig;
+use App\Models\EquipmentInspection;
 
 final class GymownerController extends Controller
 {
@@ -88,14 +89,38 @@ final class GymownerController extends Controller
             } else {
                 // Full initial submission with gym details
                 $gymName = trim((string)($_POST['gym_name'] ?? ''));
-                $gymAddress = trim((string)($_POST['gym_address'] ?? ''));
+                $streetAddress = trim((string)($_POST['street_address'] ?? ''));
+                $province = trim((string)($_POST['province'] ?? ''));
+                $cityMunicipality = trim((string)($_POST['city_municipality'] ?? ''));
+                $barangay = trim((string)($_POST['barangay'] ?? ''));
                 $maintenanceCount = (int)($_POST['maintenance_count'] ?? 0);
                 $trainerCount = (int)($_POST['trainer_count'] ?? 0);
 
                 // Validate gym details
-                if ($gymName === '' || $gymAddress === '') {
-                    $error = 'Gym name and address are required.';
+                if ($gymName === '' || $streetAddress === '' || $province === '' || $cityMunicipality === '' || $barangay === '') {
+                    $error = 'Gym name and address fields are required.';
                 } else {
+                    // Concatenate the normalized address fields
+                    $gymAddress = trim($streetAddress . ', ' . $barangay . ', ' . $cityMunicipality . ', ' . $province);
+
+                    // Parse custom/other staff roles needed
+                    $otherStaff = [];
+                    if (isset($_POST['other_staff_roles']) && isset($_POST['other_staff_counts'])) {
+                        $roles = $_POST['other_staff_roles'];
+                        $counts = $_POST['other_staff_counts'];
+                        for ($i = 0; $i < count($roles); $i++) {
+                            $role = trim((string)($roles[$i] ?? ''));
+                            $count = (int)($counts[$i] ?? 0);
+                            if ($role !== '') {
+                                $otherStaff[] = [
+                                    'role' => $role,
+                                    'count' => $count
+                                ];
+                            }
+                        }
+                    }
+                    $otherStaffJson = !empty($otherStaff) ? json_encode($otherStaff) : null;
+
                     $uploadDir = BASE_PATH . '/public/uploads/legal_documents/';
                     if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0777, true); }
 
@@ -125,12 +150,13 @@ final class GymownerController extends Controller
 
                     if ($error === '') {
                         if ($existing && in_array($existing['status'], ['resubmit', 'rejected'], true)) {
-                            // Allowed: update the existing record with new files
-                            $docModel->updateDocuments((int)$existing['id'], $paths['cert_registration'], $paths['mayors_permit'], $paths['business_name_cert'], $paths['fire_safety_cert']);
+                            // Allowed: update the existing record with new files and info
+                            $logoPath = $gymLogo !== '' ? $gymLogo : ($existing['gym_logo'] ?? '');
+                            $docModel->updateDocumentsAndInfo((int)$existing['id'], $paths['cert_registration'], $paths['mayors_permit'], $paths['business_name_cert'], $paths['fire_safety_cert'], $gymName, $logoPath, $gymAddress, $streetAddress, $province, $cityMunicipality, $barangay, $maintenanceCount, $trainerCount, $otherStaffJson);
                             $success = 'Documents resubmitted successfully. Waiting for admin review.';
                         } elseif (!$existing) {
                             // Allowed: first-time submission — create a single new record
-                            $docModel->create((int)$user['id'], $paths['cert_registration'], $paths['mayors_permit'], $paths['business_name_cert'], $paths['fire_safety_cert'], $gymName, $gymLogo, $gymAddress, $maintenanceCount, $trainerCount);
+                            $docModel->create((int)$user['id'], $paths['cert_registration'], $paths['mayors_permit'], $paths['business_name_cert'], $paths['fire_safety_cert'], $gymName, $gymLogo, $gymAddress, $maintenanceCount, $trainerCount, $streetAddress, $province, $cityMunicipality, $barangay, $otherStaffJson);
                             $success = 'Application submitted! Waiting for admin review.';
                         } else {
                             // Block: already has an active application (pending or verified)
@@ -333,9 +359,9 @@ final class GymownerController extends Controller
 
                 if ($publicKey === '' || $secretKey === '') {
                     $error = 'Both public key and secret key are required.';
-                } elseif (!str_starts_with($publicKey, 'pk_')) {
+                } elseif (strncmp($publicKey, 'pk_', 3) !== 0) {
                     $error = 'Invalid public key format. Should start with "pk_"';
-                } elseif (!str_starts_with($secretKey, 'sk_')) {
+                } elseif (strncmp($secretKey, 'sk_', 3) !== 0) {
                     $error = 'Invalid secret key format. Should start with "sk_"';
                 } else {
                     $configModel->upsert((int)$user['id'], $publicKey, $secretKey, $isActive);
@@ -425,6 +451,25 @@ final class GymownerController extends Controller
         }
 
         if ($action === 'assign') {
+            // Enforce limit: Only 1 Administrative Officer allowed. Revoke existing officer if present.
+            $existingOfficer = null;
+            try {
+                $stmt = \App\Core\Database::pdo()->prepare("SELECT id, fullname FROM users WHERE role = 'administrative_officer' AND id != :tid LIMIT 1");
+                $stmt->execute([':tid' => $targetId]);
+                $existingOfficer = $stmt->fetch(\PDO::FETCH_ASSOC);
+            } catch (\Exception $e) { /* ignore */ }
+
+            if ($existingOfficer) {
+                $userModel->updateRole((int)$existingOfficer['id'], 'customer');
+                $this->notify(
+                    (int)$existingOfficer['id'],
+                    'Administrative Officer Role Reassigned',
+                    'Your Administrative Officer role has been reassigned to another user by the gym owner.',
+                    'warning',
+                    'home/index'
+                );
+            }
+
             $ok = $userModel->updateRole($targetId, 'administrative_officer');
             if ($ok) {
                 $this->notify(
@@ -434,7 +479,11 @@ final class GymownerController extends Controller
                     'success',
                     'home/index'
                 );
-                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . ' has been assigned as Administrative Officer.';
+                $msg = htmlspecialchars($targetUser['fullname']) . ' has been assigned as Administrative Officer.';
+                if ($existingOfficer) {
+                    $msg .= ' (Previous officer ' . htmlspecialchars($existingOfficer['fullname']) . ' was replaced).';
+                }
+                $_SESSION['assign_success'] = $msg;
             } else {
                 $_SESSION['assign_error'] = 'Failed to assign role. Please try again.';
             }
@@ -458,5 +507,629 @@ final class GymownerController extends Controller
 
         $this->redirect('gymowner/users');
     }
-}
 
+    /**
+     * Assign or revoke the Marketing Officer role.
+     * POST  index.php?r=gymowner/assignmarketingofficer
+     *   id     — target user ID
+     *   action — 'assign' | 'revoke'
+     */
+    public function assignmarketingofficerAction(): void
+    {
+        $owner = $this->requireGymOwner();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('gymowner/users');
+        }
+
+        $targetId = (int)($_POST['id'] ?? 0);
+        $action   = $_POST['action'] ?? '';
+
+        if ($targetId <= 0) {
+            $_SESSION['assign_error'] = 'Invalid user ID.';
+            $this->redirect('gymowner/users');
+        }
+
+        $userModel  = new User();
+        $targetUser = $userModel->findById($targetId);
+
+        if (!$targetUser) {
+            $_SESSION['assign_error'] = 'User not found.';
+            $this->redirect('gymowner/users');
+        }
+
+        // Safety: never touch admin or another gym owner
+        if (in_array($targetUser['role'], ['admin', 'gym_owner'], true)) {
+            $_SESSION['assign_error'] = 'Cannot modify an admin or gym owner account.';
+            $this->redirect('gymowner/users');
+        }
+
+        $moModel = new \App\Models\MarketingOfficer();
+
+        if ($action === 'assign') {
+            $ok = $userModel->updateRole($targetId, 'marketing_officer');
+            if ($ok) {
+                if ($moModel->tableExists()) {
+                    $moModel->create($targetId, (int)$owner['id'], (int)$owner['id']);
+                }
+                $this->notify(
+                    $targetId,
+                    'You Have Been Assigned as Marketing Officer',
+                    'The gym owner has assigned you the Marketing Officer role. Please log out and log back in to access the new dashboard.',
+                    'success',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . ' has been assigned as Marketing Officer.';
+            } else {
+                $_SESSION['assign_error'] = 'Failed to assign role. Please try again.';
+            }
+        } elseif ($action === 'revoke') {
+            $ok = $userModel->updateRole($targetId, 'fitness_enthusiast');
+            if ($ok) {
+                if ($moModel->tableExists()) {
+                    $moModel->deactivate($targetId, (int)$owner['id']);
+                }
+                $this->notify(
+                    $targetId,
+                    'Marketing Officer Role Revoked',
+                    'Your Marketing Officer role has been revoked.',
+                    'warning',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . "'s Marketing Officer role has been revoked.";
+            } else {
+                $_SESSION['assign_error'] = 'Failed to revoke role. Please try again.';
+            }
+        } else {
+            $_SESSION['assign_error'] = 'Unknown action.';
+        }
+
+        $this->redirect('gymowner/users');
+    }
+
+    /**
+     * Assign or revoke the Fitness Trainer role.
+     * POST  index.php?r=gymowner/assignfitnesstrainer
+     *   id     — target user ID
+     *   action — 'assign' | 'revoke'
+     */
+    public function assignfitnesstrainerAction(): void
+    {
+        $owner = $this->requireGymOwner();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('gymowner/users');
+        }
+
+        $targetId = (int)($_POST['id'] ?? 0);
+        $action   = $_POST['action'] ?? '';
+
+        if ($targetId <= 0) {
+            $_SESSION['assign_error'] = 'Invalid user ID.';
+            $this->redirect('gymowner/users');
+        }
+
+        $userModel  = new User();
+        $targetUser = $userModel->findById($targetId);
+
+        if (!$targetUser) {
+            $_SESSION['assign_error'] = 'User not found.';
+            $this->redirect('gymowner/users');
+        }
+
+        if (in_array($targetUser['role'], ['admin', 'gym_owner'], true)) {
+            $_SESSION['assign_error'] = 'Cannot modify an admin or gym owner account.';
+            $this->redirect('gymowner/users');
+        }
+
+        if ($action === 'assign') {
+            $ok = $userModel->updateRole($targetId, 'trainer');
+            if ($ok) {
+                // Ensure employee record exists
+                $empModel = new Employee();
+                if (!$empModel->findByUserId($targetId)) {
+                    $empModel->create($targetId, 'trainer', (int)$owner['id']);
+                }
+                $this->notify(
+                    $targetId,
+                    'Assigned as Fitness Trainer',
+                    'You have been assigned as a Fitness Trainer. Logout and login again to see your trainer dashboard.',
+                    'success',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . ' has been assigned as Fitness Trainer.';
+            } else {
+                $_SESSION['assign_error'] = 'Failed to assign role.';
+            }
+        } elseif ($action === 'revoke') {
+            $ok = $userModel->updateRole($targetId, 'fitness_enthusiast');
+            if ($ok) {
+                $this->notify(
+                    $targetId,
+                    'Fitness Trainer Role Revoked',
+                    'Your Fitness Trainer role has been revoked.',
+                    'warning',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . "'s Fitness Trainer role has been revoked.";
+            } else {
+                $_SESSION['assign_error'] = 'Failed to revoke role.';
+            }
+        }
+
+        $this->redirect('gymowner/users');
+    }
+
+    /**
+     * Assign or revoke the Maintenance Officer role.
+     * POST  index.php?r=gymowner/assignmaintenanceofficer
+     *   id     — target user ID
+     *   action — 'assign' | 'revoke'
+     */
+    public function assignmaintenanceofficerAction(): void
+    {
+        $owner = $this->requireGymOwner();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('gymowner/users');
+        }
+
+        $targetId = (int)($_POST['id'] ?? 0);
+        $action   = $_POST['action'] ?? '';
+
+        if ($targetId <= 0) {
+            $_SESSION['assign_error'] = 'Invalid user ID.';
+            $this->redirect('gymowner/users');
+        }
+
+        $userModel  = new User();
+        $targetUser = $userModel->findById($targetId);
+
+        if (!$targetUser) {
+            $_SESSION['assign_error'] = 'User not found.';
+            $this->redirect('gymowner/users');
+        }
+
+        if (in_array($targetUser['role'], ['admin', 'gym_owner'], true)) {
+            $_SESSION['assign_error'] = 'Cannot modify an admin or gym owner account.';
+            $this->redirect('gymowner/users');
+        }
+
+        if ($action === 'assign') {
+            $ok = $userModel->updateRole($targetId, 'maintenance');
+            if ($ok) {
+                // Ensure employee record exists
+                $empModel = new Employee();
+                if (!$empModel->findByUserId($targetId)) {
+                    $empModel->create($targetId, 'maintenance', (int)$owner['id']);
+                }
+                // Ensure MaintenanceStaff entry exists
+                $mStaffModel = new \App\Models\MaintenanceStaff();
+                if ($mStaffModel->tableExists()) {
+                    $mStaffModel->create($targetId, (int)$owner['id'], (int)$owner['id']);
+                }
+                
+                $this->notify(
+                    $targetId,
+                    'Assigned as Maintenance Officer',
+                    'You have been assigned as a Maintenance Officer. Logout and login again to see your dashboard.',
+                    'success',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . ' has been assigned as Maintenance Officer.';
+            } else {
+                $_SESSION['assign_error'] = 'Failed to assign role.';
+            }
+        } elseif ($action === 'revoke') {
+            $ok = $userModel->updateRole($targetId, 'fitness_enthusiast');
+            if ($ok) {
+                $this->notify(
+                    $targetId,
+                    'Maintenance Officer Role Revoked',
+                    'Your Maintenance Officer role has been revoked.',
+                    'warning',
+                    'home/index'
+                );
+                $_SESSION['assign_success'] = htmlspecialchars($targetUser['fullname']) . "'s Maintenance Officer role has been revoked.";
+            } else {
+                $_SESSION['assign_error'] = 'Failed to revoke role.';
+            }
+        }
+
+        $this->redirect('gymowner/users');
+    }
+
+    /** Manage Fitness Trainer Pricing Packages */
+    public function trainerPricingAction(): void
+    {
+        $user = $this->requireGymOwner();
+        
+        $packageModel = new \App\Models\FitnessTrainerPackage();
+        $error = '';
+        $success = '';
+
+        // Handle form submissions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
+
+            if ($action === 'add_package') {
+                $packageData = [
+                    'package_name' => trim((string)($_POST['package_name'] ?? '')),
+                    'training_type' => $_POST['training_type'] ?? 'all',
+                    'session_count' => (int)($_POST['session_count'] ?? 0),
+                    'price' => round((float)($_POST['price'] ?? 0), 2),
+                    'duration_minutes' => (int)($_POST['duration_minutes'] ?? 60),
+                    'description' => trim((string)($_POST['description'] ?? '')),
+                    'is_active' => isset($_POST['is_active']) ? 1 : 0
+                ];
+
+                if (empty($packageData['package_name'])) {
+                    $error = 'Package name is required.';
+                } elseif ($packageData['session_count'] <= 0) {
+                    $error = 'Session count must be greater than 0.';
+                } elseif ($packageData['price'] <= 0) {
+                    $error = 'Price must be greater than 0.';
+                } else {
+                    $packageId = $packageModel->create((int)$user['id'], $packageData);
+                    if ($packageId > 0) {
+                        $success = 'Training package added successfully!';
+                    } else {
+                        $error = 'Failed to add package.';
+                    }
+                }
+            } elseif ($action === 'update_package') {
+                $packageId = (int)($_POST['package_id'] ?? 0);
+                $packageData = [
+                    'package_name' => trim((string)($_POST['package_name'] ?? '')),
+                    'training_type' => $_POST['training_type'] ?? 'all',
+                    'session_count' => (int)($_POST['session_count'] ?? 0),
+                    'price' => round((float)($_POST['price'] ?? 0), 2),
+                    'duration_minutes' => (int)($_POST['duration_minutes'] ?? 60),
+                    'description' => trim((string)($_POST['description'] ?? '')),
+                    'is_active' => isset($_POST['is_active']) ? 1 : 0
+                ];
+
+                if ($packageModel->update($packageId, (int)$user['id'], $packageData)) {
+                    $success = 'Package updated successfully!';
+                } else {
+                    $error = 'Failed to update package.';
+                }
+            } elseif ($action === 'toggle_active') {
+                $packageId = (int)($_POST['package_id'] ?? 0);
+                if ($packageModel->toggleActive($packageId, (int)$user['id'])) {
+                    $success = 'Package status updated!';
+                } else {
+                    $error = 'Failed to update status.';
+                }
+            } elseif ($action === 'delete_package') {
+                $packageId = (int)($_POST['package_id'] ?? 0);
+                if ($packageModel->delete($packageId, (int)$user['id'])) {
+                    $success = 'Package deleted successfully!';
+                } else {
+                    $error = 'Failed to delete package.';
+                }
+            }
+        }
+
+        // Get all packages for this gym owner
+        $packages = $packageModel->findByGymOwner((int)$user['id']);
+
+        $this->view('gymowner/trainer_pricing', [
+            'user' => $user,
+            'packages' => $packages,
+            'error' => $error,
+            'success' => $success
+        ]);
+    }
+
+    /** Maintenance Reports — view and verify inspection reports */
+    public function maintenancereportsAction(): void
+    {
+        $user = $this->requireGymOwner();
+        $gymOwnerId = (int)$user['id'];
+
+        $filter = $_GET['filter'] ?? 'all';
+
+        $inspectionModel = new EquipmentInspection();
+        $reports   = [];
+        $tableReady = $inspectionModel->tableExists();
+
+        if ($tableReady) {
+            $reports = $inspectionModel->findByGymOwner($gymOwnerId, $filter);
+        }
+
+        $success = '';
+        $error   = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify') {
+            $rid = (int)($_POST['report_id'] ?? 0);
+            if ($rid > 0 && $tableReady) {
+                $report = $inspectionModel->findById($rid);
+                if ($report && $report['status'] === 'submitted') {
+                    $inspectionModel->verify($rid, $gymOwnerId);
+                    $n = new Notification();
+                    if ($n->tableExists()) {
+                        $n->create(
+                            (int)$report['maintenance_id'],
+                            'Inspection Report Verified',
+                            'Your inspection report for ' . $report['equipment_name'] . ' has been verified by ' . $user['fullname'],
+                            'success',
+                            'maintenance/reportdetail&id=' . $rid
+                        );
+                    }
+                    $success = 'Report #' . $rid . ' has been verified.';
+                    $reports = $inspectionModel->findByGymOwner($gymOwnerId, $filter);
+                } else {
+                    $error = 'Report not found or already verified.';
+                }
+            }
+        }
+
+        $this->view('gymowner/maintenance-reports', [
+            'user'       => $user,
+            'reports'    => $reports,
+            'filter'     => $filter,
+            'tableReady' => $tableReady,
+            'success'    => $success,
+            'error'      => $error,
+        ]);
+    }
+
+    /**
+     * Gym Owner: Manage Gym Profile (Basic Info, Opening Hours, Equipment, Services, Plans, Training Pricing, Logo)
+     */
+    public function managegymAction(): void
+    {
+        $user = $this->requireGymOwner();
+        $gymOwnerId = (int)$user['id'];
+
+        $docModel = new LegalDocument();
+        $gym = $docModel->findByUserId($gymOwnerId);
+
+        if (!$gym) {
+            $_SESSION['flash_error'] = 'Gym record not found. Please submit your gym registration documents first.';
+            $this->redirect('gymowner/apply');
+        }
+
+        $error   = '';
+        $success = '';
+
+        $equipModel   = new \App\Models\GymEquipment();
+        $svcModel     = new GymService();
+        $planModel    = new MembershipPlan();
+        $packageModel = new \App\Models\FitnessTrainerPackage();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? 'update_profile';
+
+            if ($action === 'update_profile') {
+                $gymName          = trim((string)($_POST['gym_name'] ?? ''));
+                $gymDesc          = trim((string)($_POST['gym_description'] ?? ''));
+                $streetAddress    = trim((string)($_POST['street_address'] ?? ''));
+                $barangay         = trim((string)($_POST['barangay'] ?? ''));
+                $cityMunicipality = trim((string)($_POST['city_municipality'] ?? ''));
+                $province         = trim((string)($_POST['province'] ?? ''));
+
+                if ($gymName === '') {
+                    $error = 'Gym Name is required.';
+                } else {
+                    // Logo upload
+                    $gymLogo = null;
+                    if (!empty($_FILES['gym_logo']['tmp_name'])) {
+                        $uploadDir = BASE_PATH . '/public/uploads/legal_documents/';
+                        if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0777, true); }
+                        $ext = strtolower(pathinfo($_FILES['gym_logo']['name'], PATHINFO_EXTENSION));
+                        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                            $logoFilename = 'gym_logo_' . $gymOwnerId . '_' . time() . '.' . $ext;
+                            if (move_uploaded_file($_FILES['gym_logo']['tmp_name'], $uploadDir . $logoFilename)) {
+                                $gymLogo = 'uploads/legal_documents/' . $logoFilename;
+                            }
+                        }
+                    }
+
+                    // Opening hours processing
+                    $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+                    $openingHours = [];
+                    foreach ($days as $day) {
+                        $isClosed = isset($_POST['oh_closed_' . $day]) ? 1 : 0;
+                        $openTime  = trim((string)($_POST['oh_open_'  . $day] ?? '06:00'));
+                        $closeTime = trim((string)($_POST['oh_close_' . $day] ?? '22:00'));
+                        $openingHours[] = [
+                            'day'        => $day,
+                            'open_time'  => $openTime,
+                            'close_time' => $closeTime,
+                            'is_closed'  => $isClosed,
+                        ];
+                    }
+                    $ohJson = json_encode($openingHours, JSON_UNESCAPED_UNICODE);
+
+                    $updated = $docModel->updateGymProfile(
+                        (int)$gym['id'],
+                        $gymName,
+                        $gymDesc,
+                        $streetAddress,
+                        $province,
+                        $cityMunicipality,
+                        $barangay,
+                        $ohJson,
+                        $gymLogo
+                    );
+
+                    if ($updated) {
+                        $success = 'Gym profile and opening hours updated successfully!';
+                        $gym = $docModel->findByUserId($gymOwnerId);
+                    } else {
+                        $error = 'Failed to update gym profile.';
+                    }
+                }
+            } elseif ($action === 'add_equipment') {
+                $name        = trim((string)($_POST['name'] ?? ''));
+                $category    = trim((string)($_POST['category'] ?? 'General'));
+                $brand       = trim((string)($_POST['brand'] ?? ''));
+                $dimensions  = trim((string)($_POST['dimensions'] ?? ''));
+                $weightKg    = !empty($_POST['weight_kg']) ? (float)$_POST['weight_kg'] : null;
+                $quantity    = max(1, (int)($_POST['quantity'] ?? 1));
+                $price       = (float)($_POST['price'] ?? 0);
+                $description = trim((string)($_POST['description'] ?? ''));
+
+                if ($name === '') {
+                    $error = 'Equipment name is required.';
+                } else {
+                    $equipModel->listEquipment($gymOwnerId, $name, $category, $brand, $dimensions, $weightKg, $quantity, $price, $description, null);
+                    $success = 'Equipment added successfully!';
+                }
+            } elseif ($action === 'update_equipment') {
+                $eqId        = (int)($_POST['equipment_id'] ?? 0);
+                $name        = trim((string)($_POST['name'] ?? ''));
+                $category    = trim((string)($_POST['category'] ?? 'General'));
+                $brand       = trim((string)($_POST['brand'] ?? ''));
+                $dimensions  = trim((string)($_POST['dimensions'] ?? ''));
+                $weightKg    = !empty($_POST['weight_kg']) ? (float)$_POST['weight_kg'] : null;
+                $quantity    = max(1, (int)($_POST['quantity'] ?? 1));
+                $price       = (float)($_POST['price'] ?? 0);
+                $description = trim((string)($_POST['description'] ?? ''));
+
+                if ($eqId > 0 && $name !== '') {
+                    $equipModel->updateEquipment($eqId, $name, $category, $brand, $dimensions, $weightKg, $quantity, $price, $description);
+                    $success = 'Equipment updated successfully!';
+                } else {
+                    $error = 'Invalid equipment details.';
+                }
+            } elseif ($action === 'delete_equipment') {
+                $eqId = (int)($_POST['equipment_id'] ?? 0);
+                if ($eqId > 0) {
+                    $equipModel->deactivate($eqId);
+                    $success = 'Equipment removed.';
+                }
+            } elseif ($action === 'add_service') {
+                $name            = trim((string)($_POST['svc_name'] ?? ''));
+                $desc            = trim((string)($_POST['svc_desc'] ?? ''));
+                $memberPrice     = (float)($_POST['svc_member_price'] ?? 0);
+                $nonMemberPrice  = (float)($_POST['svc_nonmember_price'] ?? 0);
+
+                if ($name === '' || $memberPrice <= 0) {
+                    $error = 'Service name and member price are required.';
+                } else {
+                    $svcModel->create($gymOwnerId, $name, $desc, $memberPrice, $nonMemberPrice);
+                    $success = 'Service added successfully!';
+                }
+            } elseif ($action === 'update_service') {
+                $sid            = (int)($_POST['svc_id'] ?? 0);
+                $name           = trim((string)($_POST['svc_name'] ?? ''));
+                $desc           = trim((string)($_POST['svc_desc'] ?? ''));
+                $memberPrice    = (float)($_POST['svc_member_price'] ?? 0);
+                $nonMemberPrice = (float)($_POST['svc_nonmember_price'] ?? 0);
+
+                if ($sid > 0 && $name !== '' && $memberPrice > 0) {
+                    $svcModel->update($sid, $name, $desc, $memberPrice, $nonMemberPrice);
+                    $success = 'Service updated successfully!';
+                } else {
+                    $error = 'Invalid service data.';
+                }
+            } elseif ($action === 'delete_service') {
+                $sid = (int)($_POST['svc_id'] ?? 0);
+                if ($sid > 0) {
+                    $svcModel->delete($sid);
+                    $success = 'Service deleted.';
+                }
+            } elseif ($action === 'add_plan') {
+                $name     = trim((string)($_POST['plan_name'] ?? ''));
+                $desc     = trim((string)($_POST['plan_desc'] ?? ''));
+                $price    = round((float)($_POST['plan_price'] ?? 0), 2);
+                $duration = (int)($_POST['plan_duration'] ?? 30);
+
+                if ($name === '' || $price <= 0) {
+                    $error = 'Plan name and price are required.';
+                } else {
+                    $planModel->create($gymOwnerId, $name, $desc, $price, $duration);
+                    $success = 'Membership plan created!';
+                }
+            } elseif ($action === 'update_plan') {
+                $pid      = (int)($_POST['plan_id'] ?? 0);
+                $name     = trim((string)($_POST['plan_name'] ?? ''));
+                $desc     = trim((string)($_POST['plan_desc'] ?? ''));
+                $price    = round((float)($_POST['plan_price'] ?? 0), 2);
+                $duration = (int)($_POST['plan_duration'] ?? 30);
+
+                if ($pid > 0 && $name !== '' && $price > 0) {
+                    $planModel->update($pid, $name, $desc, $price, $duration);
+                    $success = 'Membership plan updated!';
+                } else {
+                    $error = 'Invalid plan data.';
+                }
+            } elseif ($action === 'delete_plan') {
+                $pid = (int)($_POST['plan_id'] ?? 0);
+                if ($pid > 0) {
+                    $planModel->delete($pid);
+                    $success = 'Membership plan deleted.';
+                }
+            } elseif ($action === 'add_package') {
+                $pkgData = [
+                    'package_name'     => trim((string)($_POST['package_name'] ?? '')),
+                    'training_type'    => $_POST['training_type'] ?? 'all',
+                    'session_count'    => (int)($_POST['session_count'] ?? 1),
+                    'price'            => round((float)($_POST['price'] ?? 0), 2),
+                    'duration_minutes' => (int)($_POST['duration_minutes'] ?? 60),
+                    'description'      => trim((string)($_POST['description'] ?? '')),
+                    'is_active'        => 1
+                ];
+                if ($pkgData['package_name'] === '' || $pkgData['price'] <= 0) {
+                    $error = 'Package name and price are required.';
+                } else {
+                    $packageModel->create($gymOwnerId, $pkgData);
+                    $success = 'Training package added!';
+                }
+            } elseif ($action === 'update_package') {
+                $pkgId   = (int)($_POST['package_id'] ?? 0);
+                $pkgData = [
+                    'package_name'     => trim((string)($_POST['package_name'] ?? '')),
+                    'training_type'    => $_POST['training_type'] ?? 'all',
+                    'session_count'    => (int)($_POST['session_count'] ?? 1),
+                    'price'            => round((float)($_POST['price'] ?? 0), 2),
+                    'duration_minutes' => (int)($_POST['duration_minutes'] ?? 60),
+                    'description'      => trim((string)($_POST['description'] ?? '')),
+                    'is_active'        => isset($_POST['is_active']) ? 1 : 0
+                ];
+                if ($pkgId > 0 && $pkgData['package_name'] !== '') {
+                    $packageModel->update($pkgId, $gymOwnerId, $pkgData);
+                    $success = 'Training package updated!';
+                } else {
+                    $error = 'Invalid package data.';
+                }
+            } elseif ($action === 'delete_package') {
+                $pkgId = (int)($_POST['package_id'] ?? 0);
+                if ($pkgId > 0) {
+                    $packageModel->delete($pkgId, $gymOwnerId);
+                    $success = 'Training package deleted.';
+                }
+            }
+        }
+
+        // Pre-fill data
+        $equipment        = $equipModel->findByOwnerId($gymOwnerId);
+        $services         = $svcModel->tableExists() ? $svcModel->findByOwnerId($gymOwnerId) : [];
+        $plans            = $planModel->tableExists() ? $planModel->findByOwnerId($gymOwnerId) : [];
+        $trainingPackages = $packageModel->findByGymOwner($gymOwnerId);
+
+        // Decode opening hours
+        $openingHours = [];
+        if (!empty($gym['opening_hours'])) {
+            $decoded = json_decode($gym['opening_hours'], true);
+            if (is_array($decoded)) {
+                $openingHours = $decoded;
+            }
+        }
+
+        $this->view('gymowner/manage_gym', [
+            'user'             => $user,
+            'gym'              => $gym,
+            'equipment'        => $equipment,
+            'services'         => $services,
+            'plans'            => $plans,
+            'trainingPackages' => $trainingPackages,
+            'openingHours'     => $openingHours,
+            'error'            => $error,
+            'success'          => $success,
+        ]);
+    }
+}
