@@ -16,7 +16,7 @@ final class View
                 $path = $resolvedPath;
             } else {
                 http_response_code(500);
-                echo 'View not found';
+                echo "View not found: " . htmlspecialchars($view) . " (Tried: " . htmlspecialchars($path) . ")";
                 return;
             }
         }
