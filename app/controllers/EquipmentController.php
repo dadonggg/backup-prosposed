@@ -59,14 +59,15 @@ final class EquipmentController extends Controller
         $monthlyProfit = $finModel->getMonthlyProfit((int)$user['id']);
 
         $this->view('equipment/budget', [
-            'user' => $user,
-            'operationalExpenses' => $operationalExpenses,
-            'totalOpex' => $totalOpex,
-            'revenues' => $revenues,
-            'totalRevenue' => $totalRevenue,
-            'monthlyProfit' => $monthlyProfit,
-            'error' => $error,
-            'success' => $success,
+            'user'               => $user,
+            'operationalExpenses'=> $operationalExpenses,
+            'totalOpex'          => (float)$totalOpex,
+            'revenues'           => $revenues,
+            'totalRevenue'       => (float)$totalRevenue,
+            'monthlyProfit'      => (float)$monthlyProfit,
+            'investment'         => (float)$totalRevenue, // backward-compat alias
+            'error'              => $error,
+            'success'            => $success,
         ]);
     }
 

@@ -6,10 +6,34 @@ use PDO;
 
 final class FinancialRecord extends Model
 {
+    /** Ensure the financial_records table exists — auto-migrate if needed */
+    private function ensureTable(): void
+    {
+        try {
+            $this->db()->query('SELECT 1 FROM financial_records LIMIT 1');
+        } catch (\Exception $e) {
+            $this->db()->exec("
+                CREATE TABLE IF NOT EXISTS `financial_records` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `gym_owner_id` INT NOT NULL,
+                    `record_type` VARCHAR(50) NOT NULL DEFAULT 'budget',
+                    `description` VARCHAR(500) NOT NULL DEFAULT '',
+                    `category` VARCHAR(100) DEFAULT NULL,
+                    `amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+                    `notes` TEXT DEFAULT NULL,
+                    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    KEY `idx_fr_owner` (`gym_owner_id`),
+                    KEY `idx_fr_type` (`record_type`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+            ");
+        }
+    }
+
     /* ─── Investment (formerly "Budget") ─── */
 
     public function setInvestment(int $ownerId, float $amount): int
     {
+        $this->ensureTable();
         // Delete old investment records for this owner, then insert new
         $stmt = $this->db()->prepare('DELETE FROM financial_records WHERE gym_owner_id = :oid AND record_type IN ("budget","investment")');
         $stmt->execute([':oid' => $ownerId]);
@@ -24,6 +48,7 @@ final class FinancialRecord extends Model
 
     public function getInvestment(int $ownerId): float
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'SELECT amount FROM financial_records WHERE gym_owner_id = :oid AND record_type IN ("budget","investment") LIMIT 1'
         );
@@ -76,6 +101,7 @@ final class FinancialRecord extends Model
 
     public function getOperationalExpenses(int $ownerId): array
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'SELECT * FROM financial_records WHERE gym_owner_id = :oid AND record_type = "operational_expense" ORDER BY created_at DESC'
         );
@@ -85,6 +111,7 @@ final class FinancialRecord extends Model
 
     public function getTotalOperationalExpenses(int $ownerId): float
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'SELECT COALESCE(SUM(amount),0) as total FROM financial_records WHERE gym_owner_id = :oid AND record_type = "operational_expense"'
         );
@@ -96,6 +123,7 @@ final class FinancialRecord extends Model
 
     public function addRevenue(int $ownerId, string $name, float $amount, string $notes = '', string $category = 'Others'): int
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'INSERT INTO financial_records (gym_owner_id, record_type, description, category, amount, notes)
              VALUES (:oid, "revenue", :desc, :cat, :amt, :notes)'
@@ -106,6 +134,7 @@ final class FinancialRecord extends Model
 
     public function getRevenues(int $ownerId): array
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'SELECT * FROM financial_records WHERE gym_owner_id = :oid AND record_type = "revenue" ORDER BY created_at DESC'
         );
@@ -115,6 +144,7 @@ final class FinancialRecord extends Model
 
     public function getTotalRevenue(int $ownerId): float
     {
+        $this->ensureTable();
         $stmt = $this->db()->prepare(
             'SELECT COALESCE(SUM(amount),0) as total FROM financial_records WHERE gym_owner_id = :oid AND record_type = "revenue"'
         );

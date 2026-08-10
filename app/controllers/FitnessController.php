@@ -837,18 +837,26 @@ final class FitnessController extends Controller
         }
 
         // Insert direct request into fitness_service_requests
+        $trainingType = trim((string)($_POST['training_type'] ?? 'personal_training'));
+        if ($trainingType === '') $trainingType = 'personal_training';
+
         $stmtReq = $pdo->prepare(
-            "INSERT INTO fitness_service_requests (member_id, full_name, email, phone, status, booking_date, booking_time, assigned_trainer_id, created_at)
-             VALUES (:mid, :fullname, :email, :phone, 'pending', :bdate, :btime, :tid, NOW())"
+            "INSERT INTO fitness_service_requests
+                (member_id, full_name, email, phone, status, booking_date, booking_time,
+                 assigned_trainer_id, training_type, session_preference, training_preference, address, city, created_at)
+             VALUES
+                (:mid, :fullname, :email, :phone, 'pending', :bdate, :btime,
+                 :tid, :ttype, '1', '', '', '', NOW())"
         );
         $stmtReq->execute([
-            ':mid' => (int)$member['id'],
+            ':mid'      => (int)$member['id'],
             ':fullname' => $user['fullname'],
-            ':email' => $user['email'],
-            ':phone' => $member['phone'] ?? '',
-            ':bdate' => $slot['session_date'],
-            ':btime' => $slot['session_time'],
-            ':tid' => $trainerId
+            ':email'    => $user['email'],
+            ':phone'    => array_key_exists('phone', $member) ? $member['phone'] : '',
+            ':bdate'    => $slot['session_date'],
+            ':btime'    => $slot['session_time'],
+            ':tid'      => $trainerId,
+            ':ttype'    => $trainingType
         ]);
         $requestId = (int)$pdo->lastInsertId();
 

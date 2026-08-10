@@ -1,8 +1,14 @@
 <?php
 declare(strict_types=1);
 $pageTitle = 'Financial Dashboard';
+// Backward-compat: remote server may still pass $investment or these may be null
+$investment      = (float)($investment      ?? $totalRevenue ?? 0);
+$monthlyProfit   = (float)($monthlyProfit   ?? 0);
+$totalRevenue    = (float)($totalRevenue    ?? 0);
+$totalOpex       = (float)($totalOpex       ?? 0);
 require __DIR__ . '/../partials/header.php';
 ?>
+
 
 <div class="mb-4">
     <h1 class="h3 mb-1"><i class="bi bi-wallet2 me-2"></i>Financial Dashboard</h1>

@@ -118,7 +118,19 @@ $expertiseTags = !empty($profile['expertise']) ? explode(',', $profile['expertis
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    
+
+                    <div>
+                        <label class="form-label small fw-bold">Training Type <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" name="training_type" required>
+                            <option value="personal_training">Personal Training</option>
+                            <option value="strength">Strength Training</option>
+                            <option value="cardio">Cardio Training</option>
+                            <option value="yoga">Yoga</option>
+                            <option value="pilates">Pilates</option>
+                            <option value="general_fitness">General Fitness</option>
+                        </select>
+                    </div>
+
                     <button class="btn btn-success mt-2" type="submit">
                         <i class="bi bi-send me-1"></i>Request Coaching
                     </button>

@@ -144,20 +144,24 @@ final class FitnessServiceRequest extends Model
     /** Find all requests (for admin officer) */
     public function findAll(): array
     {
-        $stmt = $this->db()->query(
-            'SELECT fsr.*,
-                    gm.membership_code,
-                    u.fullname as member_name,
-                    u.email as member_email,
-                    tu.fullname as trainer_name
-             FROM fitness_service_requests fsr
-             JOIN gym_members gm ON gm.id = fsr.member_id
-             JOIN users u ON u.id = gm.user_id
-             LEFT JOIN employees e ON e.id = fsr.assigned_trainer_id
-             LEFT JOIN users tu ON tu.id = e.user_id
-             ORDER BY fsr.created_at DESC'
-        );
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db()->query(
+                'SELECT fsr.*,
+                        gm.membership_code,
+                        u.fullname as member_name,
+                        u.email as member_email,
+                        tu.fullname as trainer_name
+                 FROM fitness_service_requests fsr
+                 JOIN gym_members gm ON gm.id = fsr.member_id
+                 JOIN users u ON u.id = gm.user_id
+                 LEFT JOIN employees e ON e.id = fsr.assigned_trainer_id
+                 LEFT JOIN users tu ON tu.id = e.user_id
+                 ORDER BY fsr.created_at DESC'
+            );
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            return [];
+        }
     }
 
     /** Check if member has an active request */
@@ -210,75 +214,150 @@ final class FitnessServiceRequest extends Model
     /** Get request statistics */
     public function getStats(): array
     {
-        $stmt = $this->db()->query(
-            'SELECT 
-                COUNT(*) as total_requests,
-                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = "assigned" THEN 1 ELSE 0 END) as assigned,
-                SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled
-             FROM fitness_service_requests'
-        );
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
-            'total_requests' => 0,
-            'pending' => 0,
-            'assigned' => 0,
-            'completed' => 0,
-            'cancelled' => 0
-        ];
+        try {
+            $stmt = $this->db()->query(
+                'SELECT 
+                    COUNT(*) as total_requests,
+                    SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = "assigned" THEN 1 ELSE 0 END) as assigned,
+                    SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled
+                 FROM fitness_service_requests'
+            );
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
+                'total_requests' => 0, 'pending' => 0,
+                'assigned' => 0, 'completed' => 0, 'cancelled' => 0
+            ];
+        } catch (\Exception $e) {
+            return ['total_requests' => 0, 'pending' => 0, 'assigned' => 0, 'completed' => 0, 'cancelled' => 0];
+        }
     }
 
-    /** Find requests by trainer ID (uses trainer_assignments to ensure trainers only see active assigned clients) */
+    /**
+     * Find requests by trainer ID.
+     * Covers BOTH assignment paths:
+     *   1. Admin-assigned (trainer_assignments table)
+     *   2. Direct booking (assigned_trainer_id on the request + status accepted)
+     */
     public function findByTrainerId(int $trainerId): array
     {
-        $stmt = $this->db()->prepare(
-            'SELECT fsr.*,
-                    gm.membership_code,
-                    u.fullname as member_name,
-                    u.email as member_email
-             FROM fitness_service_requests fsr
-             JOIN gym_members gm ON gm.id = fsr.member_id
-             JOIN users u ON u.id = gm.user_id
-             JOIN trainer_assignments ta ON ta.client_id = gm.id
-             WHERE ta.trainer_id = :trainer_id
-               AND ta.status = "active"
-             ORDER BY fsr.created_at DESC'
-        );
-        $stmt->execute([':trainer_id' => $trainerId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db()->prepare(
+                'SELECT DISTINCT fsr.*,
+                        gm.membership_code,
+                        u.fullname as member_name,
+                        u.email as member_email
+                 FROM fitness_service_requests fsr
+                 JOIN gym_members gm ON gm.id = fsr.member_id
+                 JOIN users u ON u.id = gm.user_id
+                 WHERE (
+                     fsr.assigned_trainer_id = :trainer_id1
+                     AND fsr.status IN ("assigned", "completed")
+                 )
+                 OR EXISTS (
+                     SELECT 1 FROM trainer_assignments ta
+                     WHERE ta.trainer_id = :trainer_id2
+                       AND ta.client_id = gm.id
+                       AND ta.status = "active"
+                 )
+                 ORDER BY fsr.created_at DESC'
+            );
+            $stmt->execute([':trainer_id1' => $trainerId, ':trainer_id2' => $trainerId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            // Fallback: use only assigned_trainer_id if trainer_assignments doesn't exist
+            $stmt = $this->db()->prepare(
+                'SELECT fsr.*,
+                        gm.membership_code,
+                        u.fullname as member_name,
+                        u.email as member_email
+                 FROM fitness_service_requests fsr
+                 JOIN gym_members gm ON gm.id = fsr.member_id
+                 JOIN users u ON u.id = gm.user_id
+                 WHERE fsr.assigned_trainer_id = :trainer_id
+                   AND fsr.status IN ("assigned", "completed")
+                 ORDER BY fsr.created_at DESC'
+            );
+            $stmt->execute([':trainer_id' => $trainerId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     }
 
-    /** Find requests by trainer ID with joined client profile data (uses trainer_assignments) */
+    /**
+     * Find requests by trainer ID with joined client profile data.
+     * Covers BOTH assignment paths:
+     *   1. Admin-assigned (trainer_assignments table)
+     *   2. Direct booking (assigned_trainer_id on the request + status accepted)
+     */
     public function findByTrainerIdWithProfiles(int $trainerId): array
     {
-        $stmt = $this->db()->prepare(
-            'SELECT fsr.*,
-                    gm.membership_code,
-                    u.id as client_user_id,
-                    u.fullname as member_name,
-                    u.email as member_email,
-                    u.profile_picture_url,
-                    fcp.id as profile_id,
-                    fcp.age,
-                    fcp.gender,
-                    fcp.height_cm,
-                    fcp.weight_kg,
-                    fcp.fitness_goals,
-                    fcp.medical_conditions,
-                    fcp.activity_level,
-                    fcp.dietary_preferences,
-                    ftp.status as plan_status
-             FROM fitness_service_requests fsr
-             JOIN gym_members gm ON gm.id = fsr.member_id
-             JOIN users u ON u.id = gm.user_id
-             JOIN trainer_assignments ta ON ta.client_id = gm.id
-             LEFT JOIN fitness_client_profiles fcp ON fcp.service_request_id = fsr.id
-             LEFT JOIN fitness_trainer_plans ftp ON ftp.service_request_id = fsr.id
-             WHERE ta.trainer_id = :trainer_id
-               AND ta.status = "active"
-             ORDER BY fsr.created_at DESC'
-        );
-        $stmt->execute([':trainer_id' => $trainerId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db()->prepare(
+                'SELECT DISTINCT fsr.*,
+                        gm.membership_code,
+                        u.id as client_user_id,
+                        u.fullname as member_name,
+                        u.email as member_email,
+                        u.profile_picture_url,
+                        fcp.id as profile_id,
+                        fcp.age,
+                        fcp.gender,
+                        fcp.height_cm,
+                        fcp.weight_kg,
+                        fcp.fitness_goals,
+                        fcp.medical_conditions,
+                        fcp.activity_level,
+                        fcp.dietary_preferences,
+                        ftp.status as plan_status
+                 FROM fitness_service_requests fsr
+                 JOIN gym_members gm ON gm.id = fsr.member_id
+                 JOIN users u ON u.id = gm.user_id
+                 LEFT JOIN fitness_client_profiles fcp ON fcp.service_request_id = fsr.id
+                 LEFT JOIN fitness_trainer_plans ftp ON ftp.service_request_id = fsr.id
+                 WHERE (
+                     fsr.assigned_trainer_id = :trainer_id1
+                     AND fsr.status IN ("assigned", "completed")
+                 )
+                 OR EXISTS (
+                     SELECT 1 FROM trainer_assignments ta
+                     WHERE ta.trainer_id = :trainer_id2
+                       AND ta.client_id = gm.id
+                       AND ta.status = "active"
+                 )
+                 ORDER BY fsr.created_at DESC'
+            );
+            $stmt->execute([':trainer_id1' => $trainerId, ':trainer_id2' => $trainerId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            // Fallback: use only assigned_trainer_id if trainer_assignments doesn't exist
+            $stmt = $this->db()->prepare(
+                'SELECT fsr.*,
+                        gm.membership_code,
+                        u.id as client_user_id,
+                        u.fullname as member_name,
+                        u.email as member_email,
+                        u.profile_picture_url,
+                        fcp.id as profile_id,
+                        fcp.age,
+                        fcp.gender,
+                        fcp.height_cm,
+                        fcp.weight_kg,
+                        fcp.fitness_goals,
+                        fcp.medical_conditions,
+                        fcp.activity_level,
+                        fcp.dietary_preferences,
+                        ftp.status as plan_status
+                 FROM fitness_service_requests fsr
+                 JOIN gym_members gm ON gm.id = fsr.member_id
+                 JOIN users u ON u.id = gm.user_id
+                 LEFT JOIN fitness_client_profiles fcp ON fcp.service_request_id = fsr.id
+                 LEFT JOIN fitness_trainer_plans ftp ON ftp.service_request_id = fsr.id
+                 WHERE fsr.assigned_trainer_id = :trainer_id
+                   AND fsr.status IN ("assigned", "completed")
+                 ORDER BY fsr.created_at DESC'
+            );
+            $stmt->execute([':trainer_id' => $trainerId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     }
 }
