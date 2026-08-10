@@ -55,23 +55,16 @@ require __DIR__ . '/../partials/header.php';
                     <input type="date" class="form-control form-control-sm" id="session_date" name="session_date" min="<?= date('Y-m-d') ?>" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label small" for="session_time">Time Slot</label>
-                    <select class="form-select form-select-sm" id="session_time" name="session_time" required>
-                        <option value="">— Select Slot —</option>
-                        <option value="06:00 AM - 07:00 AM">06:00 AM - 07:00 AM</option>
-                        <option value="07:00 AM - 08:00 AM">07:00 AM - 08:00 AM</option>
-                        <option value="08:00 AM - 09:00 AM">08:00 AM - 09:00 AM</option>
-                        <option value="09:00 AM - 10:00 AM">09:00 AM - 10:00 AM</option>
-                        <option value="10:00 AM - 11:00 AM">10:00 AM - 11:00 AM</option>
-                        <option value="11:00 AM - 12:00 PM">11:00 AM - 12:00 PM</option>
-                        <option value="01:00 PM - 02:00 PM">01:00 PM - 02:00 PM</option>
-                        <option value="02:00 PM - 03:00 PM">02:00 PM - 03:00 PM</option>
-                        <option value="03:00 PM - 04:00 PM">03:00 PM - 04:00 PM</option>
-                        <option value="04:00 PM - 05:00 PM">04:00 PM - 05:00 PM</option>
-                        <option value="05:00 PM - 06:00 PM">05:00 PM - 06:00 PM</option>
-                        <option value="06:00 PM - 07:00 PM">06:00 PM - 07:00 PM</option>
-                        <option value="07:00 PM - 08:00 PM">07:00 PM - 08:00 PM</option>
-                    </select>
+                    <label class="form-label small" for="max_capacity">Max Capacity (People)</label>
+                    <input type="number" class="form-control form-control-sm" id="max_capacity" name="max_capacity" min="1" value="1" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small" for="start_time">Start Time</label>
+                    <input type="time" class="form-control form-control-sm" id="start_time" name="start_time" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small" for="end_time">End Time</label>
+                    <input type="time" class="form-control form-control-sm" id="end_time" name="end_time" required>
                 </div>
                 <div class="col-12">
                     <button class="btn btn-sm btn-success w-100" type="submit">
@@ -92,6 +85,7 @@ require __DIR__ . '/../partials/header.php';
                             <tr>
                                 <th>Date</th>
                                 <th>Time Slot</th>
+                                <th>Capacity</th>
                                 <th>Status</th>
                                 <th class="text-center">Action</th>
                             </tr>
@@ -101,6 +95,9 @@ require __DIR__ . '/../partials/header.php';
                                 <tr>
                                     <td class="small fw-semibold"><?= date('M d, Y', strtotime($s['session_date'])) ?></td>
                                     <td class="small"><?= htmlspecialchars($s['session_time']) ?></td>
+                                    <td class="small fw-bold">
+                                        <?= (int)($s['current_bookings'] ?? 0) ?> / <?= (int)($s['max_capacity'] ?? 1) ?>
+                                    </td>
                                     <td>
                                         <span class="badge <?= $s['status'] === 'booked' ? 'bg-secondary' : 'bg-success' ?> py-1" style="font-size:0.65rem;">
                                             <?= ucfirst($s['status']) ?>

@@ -248,13 +248,15 @@ CREATE TABLE IF NOT EXISTS `trainer_profiles` (
 -- TABLE 14: trainer_schedules
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `trainer_schedules` (
-    `id`           INT AUTO_INCREMENT PRIMARY KEY,
-    `trainer_id`   INT         NOT NULL,
-    `session_date` DATE        NOT NULL,
-    `session_time` VARCHAR(50) NOT NULL,
-    `status`       ENUM('available','booked') DEFAULT 'available',
-    `request_id`   INT         DEFAULT NULL,
-    `created_at`   DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    `id`               INT AUTO_INCREMENT PRIMARY KEY,
+    `trainer_id`       INT         NOT NULL,
+    `session_date`     DATE        NOT NULL,
+    `session_time`     VARCHAR(50) NOT NULL,
+    `status`           ENUM('available','booked') DEFAULT 'available',
+    `max_capacity`     INT         DEFAULT 1,
+    `current_bookings` INT         DEFAULT 0,
+    `request_id`       INT         DEFAULT NULL,
+    `created_at`       DATETIME    DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY `uniq_trainer_slot` (`trainer_id`,`session_date`,`session_time`),
     KEY `idx_ts_trainer` (`trainer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

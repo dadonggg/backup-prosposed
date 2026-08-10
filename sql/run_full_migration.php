@@ -103,12 +103,26 @@ run($pdo, 'Create trainer_schedules', "
         `session_date` DATE NOT NULL,
         `session_time` VARCHAR(50) NOT NULL,
         `status` ENUM('available', 'booked') DEFAULT 'available',
+        `max_capacity` INT DEFAULT 1,
+        `current_bookings` INT DEFAULT 0,
         `request_id` INT DEFAULT NULL,
         `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY `idx_trainer_date_time` (`trainer_id`, `session_date`, `session_time`),
         KEY `idx_trainer_schedules_trainer` (`trainer_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 ");
+
+// Self-healing columns if table already existed
+try {
+    $pdo->query("SELECT `max_capacity` FROM `trainer_schedules` LIMIT 1");
+} catch (\Exception $e) {
+    run($pdo, 'Add max_capacity to trainer_schedules', "ALTER TABLE `trainer_schedules` ADD COLUMN `max_capacity` INT DEFAULT 1");
+}
+try {
+    $pdo->query("SELECT `current_bookings` FROM `trainer_schedules` LIMIT 1");
+} catch (\Exception $e) {
+    run($pdo, 'Add current_bookings to trainer_schedules', "ALTER TABLE `trainer_schedules` ADD COLUMN `current_bookings` INT DEFAULT 0");
+}
 
 echo "\n=== STEP 4: trainer_reviews table ===\n";
 run($pdo, 'Create trainer_reviews', "

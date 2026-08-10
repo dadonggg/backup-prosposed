@@ -753,23 +753,31 @@ final class TrainerController extends Controller
         }
 
         $date = $_POST['session_date'] ?? '';
-        $time = $_POST['session_time'] ?? '';
+        $startTimeRaw = $_POST['start_time'] ?? '';
+        $endTimeRaw = $_POST['end_time'] ?? '';
+        $maxCapacity = max(1, (int)($_POST['max_capacity'] ?? 1));
 
-        if (empty($date) || empty($time)) {
-            $_SESSION['error'] = 'Both date and time slot are required.';
+        if (empty($date) || empty($startTimeRaw) || empty($endTimeRaw)) {
+            $_SESSION['error'] = 'Date, start time, and end time are required.';
             $this->redirect('trainer/manageprofile');
         }
+
+        // Format times (e.g. "08:30" -> "08:30 AM")
+        $startTimeFormatted = date("h:i A", strtotime($startTimeRaw));
+        $endTimeFormatted = date("h:i A", strtotime($endTimeRaw));
+        $time = $startTimeFormatted . ' - ' . $endTimeFormatted;
 
         $pdo = \App\Core\Database::pdo();
         try {
             $stmt = $pdo->prepare(
-                "INSERT INTO trainer_schedules (trainer_id, session_date, session_time, status)
-                 VALUES (:tid, :date, :time, 'available')"
+                "INSERT INTO trainer_schedules (trainer_id, session_date, session_time, status, max_capacity, current_bookings)
+                 VALUES (:tid, :date, :time, 'available', :max_cap, 0)"
             );
             $stmt->execute([
                 ':tid' => $employee['id'],
                 ':date' => $date,
-                ':time' => $time
+                ':time' => $time,
+                ':max_cap' => $maxCapacity
             ]);
             $_SESSION['success'] = 'Availability slot added successfully!';
         } catch (\PDOException $e) {
@@ -889,26 +897,56 @@ final class TrainerController extends Controller
             // Update request status to 'assigned'
             $pdo->prepare("UPDATE fitness_service_requests SET status = 'assigned' WHERE id = :id")->execute([':id' => $requestId]);
 
-            // Lock slot status to booked in trainer_schedules
-            $pdo->prepare(
-                "UPDATE trainer_schedules SET status = 'booked' 
+            // Fetch current slot capacity details
+            $stmtSlot = $pdo->prepare(
+                "SELECT * FROM trainer_schedules 
                  WHERE trainer_id = :tid AND session_date = :bdate AND session_time = :btime"
-            )->execute([
+            );
+            $stmtSlot->execute([
                 ':tid' => $employee['id'],
                 ':bdate' => $request['booking_date'],
                 ':btime' => $request['booking_time']
             ]);
+            $slot = $stmtSlot->fetch(\PDO::FETCH_ASSOC);
 
-            // Decline any other pending requests on the same slot
-            $pdo->prepare(
-                "UPDATE fitness_service_requests SET status = 'cancelled' 
-                 WHERE assigned_trainer_id = :tid AND booking_date = :bdate AND booking_time = :btime AND id != :id AND status = 'pending'"
-            )->execute([
-                ':tid' => $employee['id'],
-                ':bdate' => $request['booking_date'],
-                ':btime' => $request['booking_time'],
-                ':id' => $requestId
-            ]);
+            if ($slot) {
+                $newBookings = (int)($slot['current_bookings'] ?? 0) + 1;
+                $maxCap = (int)($slot['max_capacity'] ?? 1);
+                $isFullyBooked = $newBookings >= $maxCap;
+
+                $pdo->prepare(
+                    "UPDATE trainer_schedules 
+                     SET current_bookings = :cb, status = :status 
+                     WHERE id = :id"
+                )->execute([
+                    ':cb' => $newBookings,
+                    ':status' => $isFullyBooked ? 'booked' : 'available',
+                    ':id' => $slot['id']
+                ]);
+
+                // Decline other pending requests on this slot ONLY if it is now fully booked
+                if ($isFullyBooked) {
+                    $pdo->prepare(
+                        "UPDATE fitness_service_requests SET status = 'cancelled' 
+                         WHERE assigned_trainer_id = :tid AND booking_date = :bdate AND booking_time = :btime AND id != :id AND status = 'pending'"
+                    )->execute([
+                        ':tid' => $employee['id'],
+                        ':bdate' => $request['booking_date'],
+                        ':btime' => $request['booking_time'],
+                        ':id' => $requestId
+                    ]);
+                }
+            } else {
+                // Fallback for safety
+                $pdo->prepare(
+                    "UPDATE trainer_schedules SET status = 'booked' 
+                     WHERE trainer_id = :tid AND session_date = :bdate AND session_time = :btime"
+                )->execute([
+                    ':tid' => $employee['id'],
+                    ':bdate' => $request['booking_date'],
+                    ':btime' => $request['booking_time']
+                ]);
+            }
 
             // Create trainer_assignments entry
             try {
@@ -940,15 +978,38 @@ final class TrainerController extends Controller
             // Decline: update status to 'cancelled'
             $pdo->prepare("UPDATE fitness_service_requests SET status = 'cancelled' WHERE id = :id")->execute([':id' => $requestId]);
 
-            // Free the slot back to available in trainer_schedules
-            $pdo->prepare(
-                "UPDATE trainer_schedules SET status = 'available', request_id = NULL 
+            // Free the slot back to available in trainer_schedules (decrement booking count)
+            $stmtSlot = $pdo->prepare(
+                "SELECT * FROM trainer_schedules 
                  WHERE trainer_id = :tid AND session_date = :bdate AND session_time = :btime"
-            )->execute([
+            );
+            $stmtSlot->execute([
                 ':tid' => $employee['id'],
                 ':bdate' => $request['booking_date'],
                 ':btime' => $request['booking_time']
             ]);
+            $slot = $stmtSlot->fetch(\PDO::FETCH_ASSOC);
+
+            if ($slot) {
+                $newBookings = max(0, (int)($slot['current_bookings'] ?? 0) - 1);
+                $pdo->prepare(
+                    "UPDATE trainer_schedules 
+                     SET current_bookings = :cb, status = 'available' 
+                     WHERE id = :id"
+                )->execute([
+                    ':cb' => $newBookings,
+                    ':id' => $slot['id']
+                ]);
+            } else {
+                $pdo->prepare(
+                    "UPDATE trainer_schedules SET status = 'available', request_id = NULL 
+                     WHERE trainer_id = :tid AND session_date = :bdate AND session_time = :btime"
+                )->execute([
+                    ':tid' => $employee['id'],
+                    ':bdate' => $request['booking_date'],
+                    ':btime' => $request['booking_time']
+                ]);
+            }
 
             // Send notification to enthusiast
             if ($n->tableExists()) {

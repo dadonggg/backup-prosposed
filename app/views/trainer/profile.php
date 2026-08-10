@@ -100,6 +100,9 @@ $expertiseTags = !empty($profile['expertise']) ? explode(',', $profile['expertis
                                 $isBooked = ($s['status'] === 'booked');
                                 $formattedDate = date('M d, Y', strtotime($s['session_date']));
                                 $timeSlot = $s['session_time'];
+                                $currentBookings = (int)($s['current_bookings'] ?? 0);
+                                $maxCapacity = (int)($s['max_capacity'] ?? 1);
+                                $spotsLeft = $maxCapacity - $currentBookings;
                                 ?>
                                 <div class="col-sm-6">
                                     <input type="radio" class="btn-check" name="schedule_id" id="sched_<?= $s['id'] ?>" value="<?= $s['id'] ?>" <?= $isBooked ? 'disabled' : '' ?> required>
@@ -107,6 +110,9 @@ $expertiseTags = !empty($profile['expertise']) ? explode(',', $profile['expertis
                                         <div>
                                             <i class="bi bi-calendar-event me-1"></i><?= $formattedDate ?><br>
                                             <small class="text-muted"><i class="bi bi-clock me-1"></i><?= htmlspecialchars($timeSlot) ?></small>
+                                            <?php if ($maxCapacity > 1): ?>
+                                                <br><small class="text-success fw-semibold" style="font-size:0.75rem;"><i class="bi bi-people me-1"></i><?= $spotsLeft ?> <?= $spotsLeft === 1 ? 'spot' : 'spots' ?> left</small>
+                                            <?php endif; ?>
                                         </div>
                                         <?php if ($isBooked): ?>
                                             <span class="badge bg-secondary">Booked</span>
